@@ -120,11 +120,19 @@ main() {
     print_info "检测到平台: ${PLATFORM}"
     
     # 定义安装路径
-    INSTALL_DIR="${HOME}/.cursor/toolsets/CursorToolset"
+    # 优先使用环境变量 CURSOR_TOOLSET_ROOT，如果未设置则使用默认路径
+    if [ -n "${CURSOR_TOOLSET_ROOT}" ]; then
+        INSTALL_DIR="${CURSOR_TOOLSET_ROOT}"
+    else
+        INSTALL_DIR="${HOME}/.cursor/toolsets/CursorToolset"
+    fi
     BIN_DIR="${INSTALL_DIR}/bin"
     BINARY_PATH="${BIN_DIR}/cursortoolset"
     
     print_info "安装目录: ${INSTALL_DIR}"
+    if [ -n "${CURSOR_TOOLSET_ROOT}" ]; then
+        print_info "使用环境变量 CURSOR_TOOLSET_ROOT: ${CURSOR_TOOLSET_ROOT}"
+    fi
     
     # 从 ReleaseLatest 分支获取版本号（唯一来源）
     print_info "获取最新版本号..."

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/firoyang/CursorToolset/pkg/loader"
+	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -46,11 +47,16 @@ var listCmd = &cobra.Command{
 			fmt.Printf("   仓库: %s\n", toolset.GitHubURL)
 			
 			// 检查是否已安装
-			toolsetPath := filepath.Join(workDir, ".cursor", "toolsets", toolset.Name)
-			if _, err := os.Stat(toolsetPath); err == nil {
-				fmt.Printf("   状态: ✅ 已安装\n")
+			toolsetsDir, err := paths.GetToolsetsDir(workDir)
+			if err != nil {
+				fmt.Printf("   状态: ⚠️  无法确定安装目录\n")
 			} else {
-				fmt.Printf("   状态: ⏳ 未安装\n")
+				toolsetPath := filepath.Join(toolsetsDir, toolset.Name)
+				if _, err := os.Stat(toolsetPath); err == nil {
+					fmt.Printf("   状态: ✅ 已安装\n")
+				} else {
+					fmt.Printf("   状态: ⏳ 未安装\n")
+				}
 			}
 			
 			if i < len(toolsets)-1 {

@@ -8,19 +8,31 @@ VERSION=$(shell cat version.json 2>/dev/null | grep -o '"version"[[:space:]]*:[[
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
+# 开发环境变量设置
+# 本项目开发过程中，任何命令的执行都需要export环境变量根路径到本项目的.root目录
+ROOT_DIR=$(shell pwd)/.root
+export CURSOR_TOOLSET_ROOT=$(ROOT_DIR)
+
+# 确保 .root 目录存在
+.root:
+	@mkdir -p .root
+	@echo "📁 创建开发根目录: $(ROOT_DIR)"
+	@echo "🔧 设置环境变量 CURSOR_TOOLSET_ROOT=$(ROOT_DIR)"
+
 # 默认目标
 .PHONY: all
-all: build
+all: .root build
 
 # 构建当前平台版本
 .PHONY: build
-build:
+build: .root
 	@if [ ! -f "version.json" ]; then \
 		echo "❌ 错误: version.json 文件不存在"; \
 		exit 1; \
 	fi
 	@echo "🔨 构建 $(BINARY_NAME)..."
 	@echo "📌 版本: $(VERSION)"
+	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
 	go build $(LDFLAGS) -o $(BINARY_NAME) .
 	@echo "✅ 构建完成: $(BINARY_NAME)"
 
@@ -54,15 +66,17 @@ build-all: clean
 
 # 运行测试
 .PHONY: test
-test:
+test: .root
 	@echo "🧪 运行测试..."
+	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
 	go test ./... -v -cover
 
 # 运行所有测试（包括集成测试）
 .PHONY: test-all
-test-all: test
+test-all: .root test
 	@echo ""
 	@echo "🧪 运行集成测试..."
+	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
 	@./test-install.sh
 	@echo ""
 	@./test-clean.sh
@@ -77,28 +91,47 @@ clean:
 	rm -rf dist/
 	@echo "✅ 清理完成"
 
-# 安装到本地
+# 清理开发根目录
+.PHONY: clean-root
+clean-root:
+	@echo "🧹 清理开发根目录..."
+	@if [ -d ".root" ]; then \
+		rm -rf .root; \
+		echo "✅ 开发根目录已清理"; \
+	else \
+		echo "ℹ️  开发根目录不存在，无需清理"; \
+	fi
+
+# 安装到本地（使用环境变量指定的路径或默认路径）
 .PHONY: install
 install: build
-	@echo "📦 安装到 ~/.cursor/toolsets/CursorToolset/..."
-	@mkdir -p ~/.cursor/toolsets/CursorToolset/bin
-	@cp $(BINARY_NAME) ~/.cursor/toolsets/CursorToolset/bin/
-	@cp available-toolsets.json ~/.cursor/toolsets/CursorToolset/
-	@echo "✅ 安装完成"
-	@echo ""
-	@echo "💡 请确保 ~/.cursor/toolsets/CursorToolset/bin 在您的 PATH 中"
+	@if [ -n "$$CURSOR_TOOLSET_ROOT" ]; then \
+		INSTALL_DIR="$$CURSOR_TOOLSET_ROOT"; \
+		echo "📦 安装到环境变量指定的目录: $$INSTALL_DIR"; \
+	else \
+		INSTALL_DIR="$$HOME/.cursor/toolsets/CursorToolset"; \
+		echo "📦 安装到默认目录: $$INSTALL_DIR"; \
+	fi; \
+	mkdir -p "$$INSTALL_DIR/bin"; \
+	cp $(BINARY_NAME) "$$INSTALL_DIR/bin/"; \
+	cp available-toolsets.json "$$INSTALL_DIR/"; \
+	echo "✅ 安装完成"; \
+	echo ""; \
+	echo "💡 请确保 $$INSTALL_DIR/bin 在您的 PATH 中"
 
 # 格式化代码
 .PHONY: fmt
-fmt:
+fmt: .root
 	@echo "📝 格式化代码..."
+	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
 	go fmt ./...
 	@echo "✅ 格式化完成"
 
 # 代码检查
 .PHONY: lint
-lint:
+lint: .root
 	@echo "🔍 代码检查..."
+	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
 	else \

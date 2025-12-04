@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/firoyang/CursorToolset/pkg/loader"
+	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/firoyang/CursorToolset/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -95,17 +96,17 @@ func updateSelfBinary() error {
 	if err != nil {
 		return fmt.Errorf("获取工作目录失败: %w", err)
 	}
-	
+
 	currentVer, err := version.GetVersion(workDir)
 	if err != nil {
 		// 如果读取失败，使用编译时注入的版本
 		currentVer = GetVersion()
 		fmt.Printf("  ⚠️  无法读取 version.json，使用编译版本: %s\n", currentVer)
 	}
-	
+
 	fmt.Printf("  📌 当前版本: %s\n", currentVer)
 	fmt.Printf("  🔄 开始更新...\n")
-	
+
 	// 获取当前可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
@@ -120,20 +121,19 @@ func updateSelfBinary() error {
 	exeDir := filepath.Dir(exePath)
 	fmt.Printf("  📍 当前位置: %s\n", exePath)
 
-	// 检查是否是通过一键安装脚本安装的（在 ~/.cursor/toolsets/CursorToolset/ 下）
-	homeDir, err := os.UserHomeDir()
+	// 检查是否是通过一键安装脚本安装的（在标准位置或环境变量指定的位置）
+	expectedBinDir, err := paths.GetBinDir()
 	if err != nil {
-		return fmt.Errorf("获取用户目录失败: %w", err)
+		return fmt.Errorf("获取标准安装目录失败: %w", err)
 	}
 
-	expectedDir := filepath.Join(homeDir, ".cursor", "toolsets", "CursorToolset", "bin")
-	isStandardInstall := filepath.Clean(exeDir) == filepath.Clean(expectedDir)
+	isStandardInstall := filepath.Clean(exeDir) == filepath.Clean(expectedBinDir)
 
 	if !isStandardInstall {
 		fmt.Printf("  ℹ️  检测到非标准安装位置\n")
-		fmt.Printf("  ℹ️  标准位置: %s\n", expectedDir)
+		fmt.Printf("  ℹ️  标准位置: %s\n", expectedBinDir)
 		fmt.Printf("  ℹ️  当前位置: %s\n", exeDir)
-		
+
 		// 询问用户是否继续
 		fmt.Print("  ⚠️  继续更新可能需要手动处理。是否继续？[y/N]: ")
 		var response string
@@ -153,7 +153,7 @@ func updateSelfBinary() error {
 	fmt.Printf("  📥 克隆最新代码...\n")
 
 	// 克隆最新代码
-	cmd := exec.Command("git", "clone", "--depth", "1", 
+	cmd := exec.Command("git", "clone", "--depth", "1",
 		"https://github.com/firoyang/CursorToolset.git", tempDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -184,7 +184,7 @@ func updateSelfBinary() error {
 
 	// Unix-like 系统直接替换
 	fmt.Printf("  📦 替换旧版本...\n")
-	
+
 	// 备份旧文件
 	backupPath := exePath + ".backup"
 	if err := os.Rename(exePath, backupPath); err != nil {
@@ -212,10 +212,10 @@ func updateSelfBinary() error {
 // updateOnWindows Windows 特殊处理
 func updateOnWindows(oldPath, newPath string) error {
 	fmt.Printf("  ⚠️  Windows 系统检测到文件可能被占用\n")
-	
+
 	// 创建更新脚本
 	updateScript := filepath.Join(filepath.Dir(oldPath), "update-cursortoolset.bat")
-	
+
 	scriptContent := fmt.Sprintf(`@echo off
 echo Waiting for cursortoolset to exit...
 timeout /t 2 /nobreak >nul
@@ -239,7 +239,7 @@ if %%errorlevel%% equ 0 (
 
 	fmt.Printf("  📝 已创建更新脚本: %s\n", updateScript)
 	fmt.Printf("  ℹ️  程序将退出并自动完成更新\n")
-	
+
 	// 启动更新脚本
 	cmd := exec.Command("cmd", "/c", "start", "/min", updateScript)
 	if err := cmd.Start(); err != nil {
@@ -261,10 +261,10 @@ func updateAvailableToolsets() error {
 
 	toolsetsPath := loader.GetToolsetsPath(workDir)
 	fmt.Printf("  📍 配置文件: %s\n", toolsetsPath)
-	
+
 	// 检查远程文件是否有更新
 	fmt.Printf("  🔍 检查配置文件更新...\n")
-	
+
 	// 获取本地文件的修改时间
 	localInfo, err := os.Stat(toolsetsPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -272,29 +272,29 @@ func updateAvailableToolsets() error {
 	}
 
 	// 检查是否是标准安装位置
-	homeDir, err := os.UserHomeDir()
+	rootDir, err := paths.GetRootDir()
 	if err != nil {
-		return fmt.Errorf("获取用户目录失败: %w", err)
+		return fmt.Errorf("获取安装根目录失败: %w", err)
 	}
 
-	standardPath := filepath.Join(homeDir, ".cursor", "toolsets", "CursorToolset", "available-toolsets.json")
-	
+	standardPath := filepath.Join(rootDir, "available-toolsets.json")
+
 	// 从 GitHub 下载最新版本
 	fmt.Printf("  📥 下载最新配置...\n")
-	
+
 	tempFile := toolsetsPath + ".tmp"
 	cmd := exec.Command("curl", "-fsSL", "-o", tempFile,
 		"https://raw.githubusercontent.com/firoyang/CursorToolset/main/available-toolsets.json")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("下载失败: %w", err)
 	}
-	
+
 	// 检查文件是否有变化
 	if localInfo != nil {
 		// 比较文件内容
 		oldContent, _ := os.ReadFile(toolsetsPath)
 		newContent, _ := os.ReadFile(tempFile)
-		
+
 		if string(oldContent) == string(newContent) {
 			os.Remove(tempFile)
 			fmt.Printf("  ✅ 配置文件已是最新，无需更新\n")
@@ -307,7 +307,7 @@ func updateAvailableToolsets() error {
 		os.Remove(tempFile)
 		return fmt.Errorf("替换文件失败: %w", err)
 	}
-	
+
 	fmt.Printf("  ✅ 配置文件已更新\n")
 
 	// 如果标准位置不同，也更新标准位置
@@ -335,21 +335,24 @@ func updateInstalledToolsets() error {
 	}
 
 	// 查找已安装的工具集
-	toolsetsDir := filepath.Join(workDir, ".cursor", "toolsets")
-	
+	toolsetsDir, err := paths.GetToolsetsDir(workDir)
+	if err != nil {
+		return fmt.Errorf("获取工具集安装目录失败: %w", err)
+	}
+
 	updated := 0
 	failed := 0
 
 	for _, toolset := range toolsets {
 		toolsetPath := filepath.Join(toolsetsDir, toolset.Name)
-		
+
 		// 检查是否已安装
 		if _, err := os.Stat(toolsetPath); os.IsNotExist(err) {
 			continue
 		}
 
 		fmt.Printf("  🔄 检查 %s...\n", toolset.DisplayName)
-		
+
 		// 先 fetch 检查是否有更新
 		fetchCmd := exec.Command("git", "fetch")
 		fetchCmd.Dir = toolsetPath
@@ -358,7 +361,7 @@ func updateInstalledToolsets() error {
 			failed++
 			continue
 		}
-		
+
 		// 检查是否有新的提交
 		statusCmd := exec.Command("git", "status", "-uno")
 		statusCmd.Dir = toolsetPath
@@ -368,20 +371,20 @@ func updateInstalledToolsets() error {
 			failed++
 			continue
 		}
-		
+
 		// 检查输出中是否包含 "Your branch is behind"
 		statusStr := string(output)
 		if !strings.Contains(statusStr, "Your branch is behind") {
 			fmt.Printf("    ✅ 已是最新版本\n")
 			continue
 		}
-		
+
 		fmt.Printf("    🆕 发现新版本，正在更新...\n")
 
 		// 拉取最新代码
 		pullCmd := exec.Command("git", "pull")
 		pullCmd.Dir = toolsetPath
-		
+
 		if err := pullCmd.Run(); err != nil {
 			fmt.Printf("    ❌ 更新失败: %v\n", err)
 			failed++
@@ -423,5 +426,3 @@ func copyFile(src, dst string) error {
 
 	return os.WriteFile(dst, data, 0644)
 }
-
-

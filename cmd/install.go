@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/firoyang/CursorToolset/pkg/installer"
 	"github.com/firoyang/CursorToolset/pkg/loader"
+	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -34,9 +34,13 @@ var installCmd = &cobra.Command{
 		}
 		
 		// 确定工具集安装目录
-		// 默认安装到 .cursor/toolsets/ 目录，统一管理所有 Cursor 相关内容
+		// 优先使用环境变量 CURSOR_TOOLSET_ROOT，如果未设置则使用工作目录下的 .cursor/toolsets
 		if installToolsetsDir == "" {
-			installToolsetsDir = filepath.Join(installWorkDir, ".cursor", "toolsets")
+			var err error
+			installToolsetsDir, err = paths.GetToolsetsDir(installWorkDir)
+			if err != nil {
+				return fmt.Errorf("获取工具集安装目录失败: %w", err)
+			}
 		}
 		
 		// 加载工具集列表

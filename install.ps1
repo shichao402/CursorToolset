@@ -65,7 +65,13 @@ function Install-CursorToolset {
     Write-ColorOutput "检测到平台: $platform" -Type "Info"
     
     # 定义安装路径
-    $installDir = Join-Path $env:USERPROFILE ".cursor\toolsets\CursorToolset"
+    # 优先使用环境变量 CURSOR_TOOLSET_ROOT，如果未设置则使用默认路径
+    if ($env:CURSOR_TOOLSET_ROOT) {
+        $installDir = $env:CURSOR_TOOLSET_ROOT
+        Write-ColorOutput "使用环境变量 CURSOR_TOOLSET_ROOT: $installDir" -Type "Info"
+    } else {
+        $installDir = Join-Path $env:USERPROFILE ".cursor\toolsets\CursorToolset"
+    }
     $binDir = Join-Path $installDir "bin"
     $binaryPath = Join-Path $binDir "cursortoolset.exe"
     

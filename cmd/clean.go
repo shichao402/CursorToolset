@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/firoyang/CursorToolset/pkg/loader"
+	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -51,7 +52,11 @@ var cleanCmd = &cobra.Command{
 		}
 
 		if !cleanKeepToolsets {
-			dirsToClean = append(dirsToClean, filepath.Join(workDir, ".cursor", "toolsets"))
+			toolsetsDir, err := paths.GetToolsetsDir(workDir)
+			if err != nil {
+				return fmt.Errorf("获取工具集安装目录失败: %w", err)
+			}
+			dirsToClean = append(dirsToClean, toolsetsDir)
 		}
 
 		// 显示将要清理的内容
@@ -120,4 +125,3 @@ func cleanDirectory(dir string) error {
 
 	return nil
 }
-
