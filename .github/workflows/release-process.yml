@@ -247,45 +247,6 @@ jobs:
           echo "📦 Release 文件列表:"
           ls -lh release-files/
       
-      - name: 生成 toolset.json 自描述文件
-        run: |
-          VERSION="${{ needs.validate.outputs.version }}"
-          
-          # 读取现有的 toolset.json（如果存在）
-          if [ -f "toolset.json" ]; then
-            # 使用 jq 更新版本号（如果安装了 jq）
-            if command -v jq >/dev/null 2>&1; then
-              jq ".version = \"$VERSION\"" toolset.json > release-files/toolset.json
-            else
-              # 使用 sed 更新版本号
-              sed "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" toolset.json > release-files/toolset.json
-            fi
-          else
-            # 生成基本的 toolset.json
-            cat > release-files/toolset.json << TOOLSET_EOF
-          {
-            "name": "cursortoolset",
-            "displayName": "Cursor 工具集管理器",
-            "version": "$VERSION",
-            "description": "一个类似 Homebrew 的工具集管理器，专门为 Cursor IDE 设计",
-            "author": "firoyang",
-            "license": "MIT",
-            "keywords": ["cursor", "toolset", "ai-tools", "package-manager"],
-            "repository": {
-              "type": "git",
-              "url": "https://github.com/${{ github.repository }}.git"
-            },
-            "metadata": {
-              "created": "$(date -u '+%Y-%m-%d')",
-              "toolset_version": "$VERSION"
-            }
-          }
-          TOOLSET_EOF
-          fi
-          
-          echo "✅ toolset.json 已生成"
-          cat release-files/toolset.json
-      
       - name: 生成 Release Notes
         id: release-notes
         run: |
