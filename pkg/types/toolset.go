@@ -1,6 +1,6 @@
 package types
 
-// ToolsetInfo 表示 toolsets.json 中的工具集概要信息
+// ToolsetInfo 表示 available-toolsets.json 中的工具集概要信息
 type ToolsetInfo struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName,omitempty"`
@@ -58,4 +58,5 @@ type Repository struct {
 	Type string `json:"type"`
 	URL  string `json:"url"`
 }
+
 

@@ -1,6 +1,3 @@
-[submodule "/Users/firoyang/workspace/CursorToolset/toolsets/github-action-toolset"]
-	path = /Users/firoyang/workspace/CursorToolset/toolsets/github-action-toolset
-	url = https://github.com/shichao402/GithubActionAISelfBuilder.git
 [submodule "toolsets/github-action-toolset"]
 	path = toolsets/github-action-toolset
 	url = https://github.com/shichao402/GithubActionAISelfBuilder.git

@@ -1,0 +1,467 @@
+---
+alwaysApply: true
+---
+
+# GitHub Actions 最佳实践
+
+## 🎯 核心理念
+
+1. **保持简单**: 优先使用简单的 YAML 配置，避免过度抽象
+2. **本地优先**: 本地能构建的，CI 才能构建
+3. **快速反馈**: 优化构建速度，使用缓存和并行
+4. **可维护性**: 清晰的结构，充分的注释，易于理解
+
+## 📋 工作流组织
+
+### 文件命名
+
+```
+.github/workflows/
+├── build.yml           # 构建工作流
+├── test.yml            # 测试工作流
+├── release.yml         # 发布工作流
+├── ci.yml              # 完整 CI 流程
+└── deploy-prod.yml     # 生产部署
+```
+
+**命名规范**：
+- 使用小写字母和连字符
+- 名称应清晰描述用途
+- 避免过长的名称
+
+### 工作流拆分
+
+```yaml
+# ❌ 避免：单个巨大的工作流
+# .github/workflows/everything.yml (500+ 行)
+
+# ✅ 推荐：拆分为多个小工作流
+# .github/workflows/build.yml (50 行)
+# .github/workflows/test.yml (50 行)
+# .github/workflows/deploy.yml (50 行)
+```
+
+**拆分原则**：
+- 按功能拆分（构建、测试、部署）
+- 单个文件不超过 200 行
+- 可独立触发和调试
+
+### 工作流复用
+
+```yaml
+# .github/workflows/reusable-build.yml
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: true
+        type: string
+    outputs:
+      artifact-name:
+        description: "Build artifact name"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.build.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+      # ... 构建步骤
+```
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      node-version: '18'
+```
+
+## 🚀 性能优化
+
+### 1. 使用缓存
+
+```yaml
+# Node.js 项目
+- name: Setup Node.js
+  uses: actions/setup-node@v4
+  with:
+    node-version: '18'
+    cache: 'npm'  # 自动缓存
+
+# Python 项目
+- name: Setup Python
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+    cache: 'pip'
+
+# 自定义缓存
+- name: Cache build output
+  uses: actions/cache@v3
+  with:
+    path: |
+      dist/
+      .cache/
+    key: ${{ runner.os }}-build-${{ hashFiles('src/**') }}
+    restore-keys: |
+      ${{ runner.os }}-build-
+```
+
+### 2. 并行执行
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+        node: [16, 18, 20]
+      fail-fast: false  # 不因单个失败停止所有任务
+      max-parallel: 6   # 限制并行数
+```
+
+### 3. 条件执行
+
+```yaml
+jobs:
+  build:
+    # 只在主分支或标签时执行
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Deploy
+        # 只在 push 事件时执行
+        if: github.event_name == 'push'
+        run: npm run deploy
+      
+      - name: Upload artifact
+        # 只在 Linux 上执行
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+```
+
+### 4. 跳过不必要的运行
+
+```yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'          # 只在代码变更时触发
+      - 'package.json'
+      - '.github/workflows/build.yml'
+    paths-ignore:
+      - 'docs/**'         # 文档变更不触发
+      - '**.md'
+```
+
+## 🔐 安全实践
+
+### 1. 最小权限原则
+
+```yaml
+# ✅ 推荐：明确指定需要的权限
+permissions:
+  contents: read
+  issues: write
+
+# ❌ 避免：授予所有权限
+permissions: write-all
+```
+
+### 2. 安全使用 Secrets
+
+```yaml
+# ✅ 正确：在需要时使用
+- name: Deploy
+  env:
+    DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+  run: |
+    # 不要在日志中打印 token
+    deploy.sh
+
+# ❌ 错误：暴露在日志中
+- name: Debug
+  run: echo "Token: ${{ secrets.DEPLOY_TOKEN }}"  # 危险！
+```
+
+### 3. 固定 Action 版本
+
+```yaml
+# ✅ 推荐：使用具体版本
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4.0.0
+
+# ❌ 避免：使用 latest 或分支
+- uses: actions/checkout@latest
+- uses: actions/setup-node@main
+```
+
+### 4. 审查第三方 Actions
+
+```yaml
+# ✅ 推荐：使用可信的官方 Actions
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4
+
+# ⚠️ 谨慎：使用第三方 Actions
+- uses: some-user/unknown-action@v1  # 先审查代码
+```
+
+## 📊 日志和调试
+
+### 1. 结构化日志
+
+```yaml
+- name: Build application
+  run: |
+    echo "::group::Installing dependencies"
+    npm install
+    echo "::endgroup::"
+    
+    echo "::group::Building application"
+    npm run build
+    echo "::endgroup::"
+    
+    echo "::notice::Build completed successfully"
+```
+
+### 2. 输出重要信息
+
+```yaml
+- name: Build info
+  id: build
+  run: |
+    VERSION=$(node -p "require('./package.json').version")
+    echo "version=$VERSION" >> $GITHUB_OUTPUT
+    echo "::notice::Building version $VERSION"
+
+- name: Use build info
+  run: echo "Version: ${{ steps.build.outputs.version }}"
+```
+
+### 3. 错误处理
+
+```yaml
+- name: Run tests
+  run: |
+    if ! npm test; then
+      echo "::error::Tests failed"
+      exit 1
+    fi
+    echo "::notice::All tests passed"
+```
+
+## 🔄 本地与 CI 一致性
+
+### 原则：本地能构建，CI 才能构建
+
+```bash
+# 创建本地构建脚本
+# scripts/build.sh
+
+#!/bin/bash
+set -e
+
+echo "Installing dependencies..."
+npm install
+
+echo "Running linter..."
+npm run lint
+
+echo "Running tests..."
+npm test
+
+echo "Building..."
+npm run build
+
+echo "✅ Build completed"
+```
+
+```yaml
+# GitHub Actions 使用相同的脚本
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      # 使用本地相同的构建脚本
+      - name: Build
+        run: bash scripts/build.sh
+```
+
+**优势**：
+- 本地调试更快
+- CI 和本地结果一致
+- 脚本可在多个 CI 系统复用
+
+## 📝 文档和注释
+
+### 1. 工作流文档
+
+```yaml
+name: Build and Test
+
+# 说明：构建应用并运行测试
+# 触发：push 到 main 分支或创建 PR
+# 输出：构建产物上传到 artifacts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 检出代码（包含完整历史用于版本号）
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+```
+
+### 2. 步骤注释
+
+```yaml
+steps:
+  # 设置 Node.js 环境
+  # 使用 v18 LTS 版本，与本地开发环境一致
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '18'
+      cache: 'npm'
+  
+  # 安装依赖
+  # 使用 npm ci 而不是 npm install 确保锁文件一致性
+  - name: Install dependencies
+    run: npm ci
+```
+
+## 🎨 代码风格
+
+### YAML 格式
+
+```yaml
+# ✅ 推荐：清晰的缩进和空行
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build
+        run: npm run build
+
+# ❌ 避免：混乱的格式
+name: CI
+on: {push: {branches: [main]}}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Build
+      run: npm run build
+```
+
+### 环境变量命名
+
+```yaml
+env:
+  # ✅ 推荐：大写字母和下划线
+  NODE_VERSION: '18'
+  BUILD_ENV: production
+  API_BASE_URL: https://api.example.com
+  
+  # ❌ 避免：小写或混合
+  nodeVersion: '18'
+  buildEnv: production
+```
+
+## 🚀 持续改进
+
+### 1. 监控工作流性能
+
+```yaml
+- name: Build with timing
+  run: |
+    START_TIME=$(date +%s)
+    npm run build
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+    echo "::notice::Build completed in ${DURATION}s"
+```
+
+### 2. 定期审查和优化
+
+- 每月审查工作流执行时间
+- 识别慢的步骤并优化
+- 删除不再使用的工作流
+- 更新过时的 Actions
+
+### 3. 使用 Actions 依赖图
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # ...
+  
+  test:
+    needs: build  # 等待 build 完成
+    runs-on: ubuntu-latest
+    # ...
+  
+  deploy:
+    needs: [build, test]  # 等待多个任务
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # ...
+```
+
+## 🎯 AI 助手行为指南
+
+当处理 GitHub Actions 时：
+
+1. **遵循规则**: 按照规则和最佳实践创建工作流
+2. **保持简单**: 不要过度工程化，YAML 配置应简洁明了
+3. **本地测试**: 构建脚本应该能在本地运行，不依赖 CI 环境
+4. **使用工具**: 调试时使用项目提供的脚本，不要手动操作
+5. **文档同步**: 修改工作流时更新相关文档
+6. **验证修改**: 每次修改后都要测试验证
+7. **安全第一**: 注意权限和密钥的使用
+
+## 📚 参考资源
+
+- [GitHub Actions 官方文档](https://docs.github.com/en/actions)
+- [GitHub Actions Marketplace](https://github.com/marketplace?type=actions)
+- [工作流语法](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions)

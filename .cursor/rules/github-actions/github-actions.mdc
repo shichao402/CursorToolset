@@ -1,0 +1,333 @@
+---
+alwaysApply: true
+---
+
+# GitHub Actions 工作流规则
+
+## 🎯 核心原则
+
+AI 助手在处理 GitHub Actions 时应遵循以下原则：
+
+1. **简洁优先**: 使用 YAML 模板，避免过度抽象
+2. **测试驱动**: 修改后必须验证，使用工具自动化调试
+3. **本地一致**: 本地构建脚本应与 CI 流程保持一致
+4. **文档同步**: 代码变更时同步更新文档
+
+## 📋 工作流文件管理
+
+### 工作流文件位置
+
+- 所有 GitHub Actions 工作流文件放在 `.github/workflows/` 目录
+- 使用描述性文件名：`build-nodejs.yml`, `test-python.yml`, `release.yml`
+
+### 工作流命名规范
+
+```yaml
+name: Build and Test  # 清晰描述工作流用途
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}  # 清晰的任务名
+    runs-on: ${{ matrix.os }}
+    # ...
+```
+
+## 🔧 最佳实践
+
+### 1. 触发条件
+
+```yaml
+# ✅ 推荐：明确指定分支和路径
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      debug_enabled:
+        description: 'Enable debug mode'
+        required: false
+        default: 'false'
+
+# ❌ 避免：过于宽泛的触发条件
+on: [push, pull_request]  # 不明确，可能触发过多
+```
+
+### 2. 环境变量和密钥
+
+```yaml
+env:
+  NODE_VERSION: '18'  # 全局环境变量
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_ENV: production  # 任务级环境变量
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Use secrets safely
+        env:
+          # ✅ 正确：在步骤级别使用密钥
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 使用 $TOKEN，不要在日志中打印
+          echo "Token is set"
+```
+
+**重要规则**：
+- ✅ 使用 `${{ secrets.GITHUB_TOKEN }}` 访问仓库（默认提供）
+- ✅ 敏感信息使用 GitHub Secrets
+- ❌ 永远不要在日志中打印密钥
+- ❌ 不要硬编码密码或 Token
+
+### 3. 缓存策略
+
+```yaml
+steps:
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '18'
+      cache: 'npm'  # ✅ 自动缓存 npm 依赖
+  
+  # 或手动缓存
+  - name: Cache dependencies
+    uses: actions/cache@v3
+    with:
+      path: |
+        ~/.npm
+        node_modules
+      key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+      restore-keys: |
+        ${{ runner.os }}-npm-
+```
+
+### 4. 错误处理
+
+```yaml
+steps:
+  - name: Run tests
+    id: tests
+    continue-on-error: true  # 允许失败但继续执行
+    run: npm test
+  
+  - name: Report test results
+    if: always()  # 总是执行，即使前面步骤失败
+    run: echo "Tests completed"
+  
+  - name: Fail if tests failed
+    if: steps.tests.outcome == 'failure'
+    run: exit 1
+```
+
+### 5. 矩阵构建
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [16, 18, 20]
+        exclude:
+          - os: macos-latest
+            node: 16  # 排除特定组合
+      fail-fast: false  # 不因单个失败停止所有任务
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+```
+
+## 🚫 禁止的操作
+
+### 1. 禁止手动运行复杂命令
+
+AI 助手**严格禁止**手动拼接复杂的 GitHub CLI 命令：
+
+```bash
+# ❌ 禁止：手动运行 gh workflow 命令
+gh workflow run build.yml --ref main -f version=1.0.0
+
+# ❌ 禁止：复杂的命令拼接
+gh workflow run build.yml && sleep 10 && node -e "console.log('waiting')"
+
+# ✅ 正确：使用项目提供的调试脚本
+npm run ai-debug -- .github/workflows/build.yml main
+```
+
+### 2. 禁止手动修改生成的工作流
+
+如果工作流是从模板或工具生成的，**严格禁止**直接修改 YAML 文件：
+
+```bash
+# ❌ 禁止：直接编辑生成的 workflow
+vim .github/workflows/build.yml
+
+# ✅ 正确：直接修改工作流文件
+vim .github/workflows/build.yml
+```
+
+## 🔍 调试工作流
+
+### 使用工具脚本调试
+
+AI 助手在调试 GitHub Actions 时**必须使用**项目提供的调试工具：
+
+```bash
+# ✅ 正确：使用 AI 调试脚本
+npm run ai-debug -- .github/workflows/build.yml main
+
+# 带参数的调试
+npm run ai-debug -- .github/workflows/release.yml main -f version=1.0.0
+
+# ✅ 正确：使用测试脚本
+npm run test-pipeline -- --workflow build.yml --trigger --watch
+```
+
+**调试流程**：
+1. 修改工作流或代码
+2. **先推送代码到远程仓库**（必须！）
+3. 使用调试脚本触发并监控
+4. 脚本自动收集错误日志
+5. 根据建议修正代码
+6. 重复 1-5 直到成功
+
+**重要**：在线 workflow 测试需要代码在远程仓库中，**必须先推送代码**再触发测试。
+
+### 启用调试日志
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable debug logging
+        if: runner.debug == '1'
+        run: echo "Debug mode enabled"
+      
+      - name: Run with debug
+        run: |
+          set -x  # 启用 shell 调试输出
+          npm run build
+```
+
+手动触发时启用调试：
+
+```bash
+# 使用 workflow_dispatch 的 debug input
+gh workflow run build.yml -f debug_enabled=true
+```
+
+## 📦 常用 Actions
+
+### 推荐的官方 Actions
+
+```yaml
+# 代码检出
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0  # 获取完整历史（用于版本标签等）
+
+# 设置 Node.js
+- uses: actions/setup-node@v4
+  with:
+    node-version: '18'
+    cache: 'npm'
+
+# 设置 Python
+- uses: actions/setup-python@v5
+  with:
+    python-version: '3.11'
+    cache: 'pip'
+
+# 上传构建产物
+- uses: actions/upload-artifact@v4
+  with:
+    name: build-output
+    path: dist/
+
+# 下载构建产物
+- uses: actions/download-artifact@v4
+  with:
+    name: build-output
+    path: dist/
+
+# 创建 GitHub Release
+- uses: softprops/action-gh-release@v1
+  with:
+    files: |
+      dist/*.zip
+      dist/*.tar.gz
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## 🔐 权限管理
+
+```yaml
+# 最小权限原则
+permissions:
+  contents: read  # 只读代码
+  issues: write   # 可写 issues
+  pull-requests: write  # 可写 PR
+
+# 或者使用默认权限
+permissions: {}  # 使用仓库默认权限
+
+# 需要写权限时明确声明
+permissions:
+  contents: write  # 用于推送标签或发布
+```
+
+## 📝 注释和文档
+
+```yaml
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # ✅ 好的注释：解释为什么这样做
+      # 使用 Node.js 18 是因为项目依赖需要
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      # ❌ 坏的注释：重复代码内容
+      # 安装依赖
+      - name: Install dependencies
+        run: npm install
+```
+
+## 🎯 AI 助手行为要求
+
+1. **遵循规则**: 按照规则和最佳实践创建工作流
+2. **使用工具**: 调试时必须使用项目提供的脚本
+3. **验证修改**: 每次修改后都要触发测试验证
+4. **先推送再测**: 在线测试前必须先推送代码到远程仓库
+5. **保持简洁**: 避免过度复杂的工作流逻辑
+6. **文档同步**: 修改工作流时更新相关文档

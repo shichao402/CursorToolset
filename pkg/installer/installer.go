@@ -54,34 +54,86 @@ func (i *Installer) InstallToolset(toolsetInfo *types.ToolsetInfo) error {
 
 // installAsSubmodule 将 GitHub 仓库作为子模块安装
 func (i *Installer) installAsSubmodule(githubURL, targetPath string) error {
+	// 检查当前目录是否是 Git 仓库
+	if !i.isGitRepository() {
+		return fmt.Errorf("当前目录不是 Git 仓库。请先运行 'git init' 初始化仓库，或使用 'git clone' 克隆现有仓库")
+	}
+	
 	// 确保 toolsets 目录存在
 	if err := os.MkdirAll(i.ToolsetsDir, 0755); err != nil {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 	
 	// 检查是否已经是子模块
-	if _, err := os.Stat(targetPath); err == nil {
+	if i.isSubmodule(targetPath) {
 		fmt.Printf("  ℹ️  子模块已存在，更新中...\n")
 		// 更新子模块
 		cmd := exec.Command("git", "submodule", "update", "--init", "--recursive", targetPath)
 		cmd.Dir = i.WorkDir
+		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("更新子模块失败: %w", err)
 		}
 		return nil
 	}
 	
-	// 添加子模块
-	fmt.Printf("  📥 添加 Git 子模块: %s\n", githubURL)
-	cmd := exec.Command("git", "submodule", "add", githubURL, targetPath)
-	cmd.Dir = i.WorkDir
-	if err := cmd.Run(); err != nil {
-		// 如果添加失败，可能是 .gitmodules 不存在，尝试直接克隆
-		fmt.Printf("  ⚠️  子模块添加失败，尝试直接克隆...\n")
-		return i.cloneRepository(githubURL, targetPath)
+	// 如果目录已存在但不是子模块，先删除
+	if _, err := os.Stat(targetPath); err == nil {
+		fmt.Printf("  🗑️  删除已存在的目录（将作为子模块重新添加）...\n")
+		if err := os.RemoveAll(targetPath); err != nil {
+			return fmt.Errorf("删除已存在目录失败: %w", err)
+		}
 	}
 	
+	// 添加子模块（使用 -f 强制添加，即使被 .gitignore 忽略）
+	// 使用相对路径，确保 .gitmodules 中的路径是相对路径
+	relPath, err := filepath.Rel(i.WorkDir, targetPath)
+	if err != nil {
+		return fmt.Errorf("计算相对路径失败: %w", err)
+	}
+	
+	fmt.Printf("  📥 添加 Git 子模块: %s\n", githubURL)
+	cmd := exec.Command("git", "submodule", "add", "-f", githubURL, relPath)
+	cmd.Dir = i.WorkDir
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("添加 Git 子模块失败: %w\n提示：请确保当前目录是 Git 仓库，并且有写入权限", err)
+	}
+	
+	fmt.Printf("  ✅ Git 子模块添加成功\n")
 	return nil
+}
+
+// isGitRepository 检查当前目录是否是 Git 仓库
+func (i *Installer) isGitRepository() bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = i.WorkDir
+	return cmd.Run() == nil
+}
+
+// isSubmodule 检查指定路径是否是 Git 子模块
+func (i *Installer) isSubmodule(path string) bool {
+	// 检查 .gitmodules 文件中是否包含该路径
+	gitmodulesPath := filepath.Join(i.WorkDir, ".gitmodules")
+	if _, err := os.Stat(gitmodulesPath); os.IsNotExist(err) {
+		return false
+	}
+	
+	// 读取 .gitmodules 文件
+	data, err := os.ReadFile(gitmodulesPath)
+	if err != nil {
+		return false
+	}
+	
+	// 检查路径是否在 .gitmodules 中
+	// 使用相对路径进行比较
+	relPath, err := filepath.Rel(i.WorkDir, path)
+	if err != nil {
+		return false
+	}
+	
+	return strings.Contains(string(data), fmt.Sprintf("path = %s", relPath))
 }
 
 // cloneRepository 直接克隆仓库（当不是 Git 仓库时使用）
@@ -134,7 +186,9 @@ func (i *Installer) copyTarget(targetPath string, target types.InstallTarget, so
 	
 	// 检查源路径是否存在
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-		return fmt.Errorf("源路径不存在: %s", sourcePath)
+		fmt.Printf("  ⚠️  跳过目标 %s：源路径不存在 (%s)\n", targetPath, sourcePath)
+		fmt.Printf("      提示：可能需要先构建工具。请查看工具集文档。\n")
+		return nil // 不返回错误，允许继续安装其他目标
 	}
 	
 	// 确保目标目录存在
@@ -149,10 +203,21 @@ func (i *Installer) copyTarget(targetPath string, target types.InstallTarget, so
 	}
 	
 	// 拷贝指定文件
+	hasMatchedFiles := false
 	for _, filePattern := range target.Files {
-		if err := i.copyFilesByPattern(sourcePath, fullTargetPath, filePattern, target); err != nil {
+		matched, err := i.copyFilesByPattern(sourcePath, fullTargetPath, filePattern, target)
+		if err != nil {
 			return err
 		}
+		if matched {
+			hasMatchedFiles = true
+		}
+	}
+	
+	// 如果没有匹配到任何文件，给出提示
+	if !hasMatchedFiles && len(target.Files) > 0 {
+		fmt.Printf("  ⚠️  目标 %s：没有匹配到文件 (模式: %v)\n", targetPath, target.Files)
+		fmt.Printf("      提示：可能需要先构建工具或检查文件模式。\n")
 	}
 	
 	return nil
@@ -208,8 +273,8 @@ func (i *Installer) copyDirectory(source, target string, config types.InstallTar
 	})
 }
 
-// copyFilesByPattern 根据模式拷贝文件
-func (i *Installer) copyFilesByPattern(sourceDir, targetDir, pattern string, config types.InstallTarget) error {
+// copyFilesByPattern 根据模式拷贝文件，返回是否成功匹配到文件
+func (i *Installer) copyFilesByPattern(sourceDir, targetDir, pattern string, config types.InstallTarget) (bool, error) {
 	// 简单的通配符匹配（支持 *）
 	if strings.Contains(pattern, "*") {
 		return i.copyFilesByGlob(sourceDir, targetDir, pattern, config)
@@ -222,31 +287,31 @@ func (i *Installer) copyFilesByPattern(sourceDir, targetDir, pattern string, con
 	// 检查源文件是否存在
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
 		fmt.Printf("    ⚠️  源文件不存在: %s\n", sourcePath)
-		return nil
+		return false, nil
 	}
 	
 	// 检查是否需要覆盖
 	if !config.Overwrite {
 		if _, err := os.Stat(targetPath); err == nil {
 			fmt.Printf("    ⏭️  跳过已存在文件: %s\n", pattern)
-			return nil
+			return true, nil
 		}
 	}
 	
 	fmt.Printf("  📄 拷贝文件: %s -> %s\n", pattern, targetPath)
-	return i.copyFile(sourcePath, targetPath, config.Executable)
+	return true, i.copyFile(sourcePath, targetPath, config.Executable)
 }
 
-// copyFilesByGlob 使用 glob 模式拷贝文件
-func (i *Installer) copyFilesByGlob(sourceDir, targetDir, pattern string, config types.InstallTarget) error {
+// copyFilesByGlob 使用 glob 模式拷贝文件，返回是否成功匹配到文件
+func (i *Installer) copyFilesByGlob(sourceDir, targetDir, pattern string, config types.InstallTarget) (bool, error) {
 	matches, err := filepath.Glob(filepath.Join(sourceDir, pattern))
 	if err != nil {
-		return err
+		return false, err
 	}
 	
 	if len(matches) == 0 {
 		fmt.Printf("    ⚠️  没有匹配的文件: %s\n", pattern)
-		return nil
+		return false, nil
 	}
 	
 	// 如果可执行文件且匹配多个文件，尝试选择平台特定的文件
@@ -257,10 +322,11 @@ func (i *Installer) copyFilesByGlob(sourceDir, targetDir, pattern string, config
 		}
 	}
 	
+	copiedCount := 0
 	for _, match := range matches {
 		relPath, err := filepath.Rel(sourceDir, match)
 		if err != nil {
-			return err
+			return false, err
 		}
 		
 		// 如果是可执行文件且是平台特定文件，使用基础名称
@@ -279,17 +345,19 @@ func (i *Installer) copyFilesByGlob(sourceDir, targetDir, pattern string, config
 		if !config.Overwrite {
 			if _, err := os.Stat(targetPath); err == nil {
 				fmt.Printf("    ⏭️  跳过已存在文件: %s\n", targetFileName)
+				copiedCount++
 				continue
 			}
 		}
 		
 		fmt.Printf("  📄 拷贝文件: %s -> %s\n", relPath, targetPath)
 		if err := i.copyFile(match, targetPath, config.Executable); err != nil {
-			return err
+			return false, err
 		}
+		copiedCount++
 	}
 	
-	return nil
+	return copiedCount > 0, nil
 }
 
 // selectPlatformFile 选择当前平台的特定文件

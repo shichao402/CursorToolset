@@ -9,16 +9,16 @@ import (
 	"github.com/firoyang/CursorToolset/pkg/types"
 )
 
-// LoadToolsets 从 toolsets.json 加载工具集列表
+// LoadToolsets 从 available-toolsets.json 加载工具集列表
 func LoadToolsets(toolsetsPath string) ([]*types.ToolsetInfo, error) {
 	data, err := os.ReadFile(toolsetsPath)
 	if err != nil {
-		return nil, fmt.Errorf("读取 toolsets.json 失败: %w", err)
+		return nil, fmt.Errorf("读取 available-toolsets.json 失败: %w", err)
 	}
 	
 	var toolsets []*types.ToolsetInfo
 	if err := json.Unmarshal(data, &toolsets); err != nil {
-		return nil, fmt.Errorf("解析 toolsets.json 失败: %w", err)
+		return nil, fmt.Errorf("解析 available-toolsets.json 失败: %w", err)
 	}
 	
 	return toolsets, nil
@@ -34,21 +34,22 @@ func FindToolset(toolsets []*types.ToolsetInfo, name string) *types.ToolsetInfo 
 	return nil
 }
 
-// GetToolsetsPath 获取 toolsets.json 的路径
+// GetToolsetsPath 获取 available-toolsets.json 的路径
 func GetToolsetsPath(workDir string) string {
 	// 首先尝试工作目录
-	path := filepath.Join(workDir, "toolsets.json")
+	path := filepath.Join(workDir, "available-toolsets.json")
 	if _, err := os.Stat(path); err == nil {
 		return path
 	}
 	
 	// 尝试项目根目录
-	path = filepath.Join(workDir, "..", "toolsets.json")
+	path = filepath.Join(workDir, "..", "available-toolsets.json")
 	if _, err := os.Stat(path); err == nil {
 		return path
 	}
 	
 	// 返回默认路径
-	return filepath.Join(workDir, "toolsets.json")
+	return filepath.Join(workDir, "available-toolsets.json")
 }
+
 

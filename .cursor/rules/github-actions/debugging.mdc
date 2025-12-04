@@ -1,0 +1,408 @@
+---
+alwaysApply: true
+---
+
+# GitHub Actions 调试规则
+
+## 🚨 核心规则
+
+**AI 助手在调试 GitHub Actions 时必须遵循以下规则：**
+
+1. **必须使用工具脚本**：严格禁止手动运行 `gh workflow run` 命令
+2. **必须先推送代码**：在线测试前必须推送代码到远程仓库
+3. **必须收集日志**：失败时必须查看详细日志，不能猜测
+4. **必须验证修复**：修复后必须重新测试验证
+
+## 📋 标准调试流程
+
+### 完整的调试循环
+
+```bash
+# 1. 修复代码或工作流
+vim .github/workflows/build.yml
+
+# 2. 推送代码到远程仓库（必须！）
+git add .github/workflows/build.yml
+git commit -m "fix: 修复工作流问题"
+git push origin main
+
+# 3. 使用调试工具触发并监控
+gh-action-debug workflow debug .github/workflows/build.yml main --output json
+
+# 4. 工具会自动：
+#    - 触发工作流
+#    - 监控执行状态
+#    - 收集失败日志
+#    - 分析错误原因
+#    - 提供修复建议
+
+# 5. 根据建议修复代码
+
+# 6. 重复步骤 1-5 直到成功
+```
+
+### 为什么必须先推送代码？
+
+```
+❌ 错误流程：
+1. 修改本地文件
+2. 触发 workflow  ← GitHub 使用旧代码！
+3. 测试失败      ← 但本地已经修复了
+
+✅ 正确流程：
+1. 修改本地文件
+2. 推送到远程仓库
+3. 触发 workflow  ← GitHub 使用新代码
+4. 测试成功/失败 ← 结果准确
+```
+
+**GitHub Actions 从远程仓库拉取代码，本地修改不会生效！**
+
+## 🔧 调试工具使用
+
+### 1. Go 调试工具（强烈推荐！）
+
+**工具**: `gh-action-debug` - 用 Go 编写的 GitHub Actions 调试工具，专为 AI 设计
+
+**位置**: 安装后位于系统 PATH 或 `core/tools/go/dist/gh-action-debug`
+
+**核心优势**：
+- ✅ **一个命令完成所有步骤**：触发 + 监控 + 分析 + 建议
+- ✅ **标准 JSON 输出**：AI 友好，易于解析
+- ✅ **智能错误分析**：12+ 种常见错误模式，自动生成修复建议
+- ✅ **零依赖**：单一可执行文件，无需 Python
+
+**基本用法**：
+
+```bash
+# 完整的自动调试（推荐）
+gh-action-debug workflow debug .github/workflows/build.yml main --output json
+
+# 带参数触发
+gh-action-debug workflow debug .github/workflows/release.yml main \
+  --input version=1.0.0 \
+  --output json
+
+# 详细输出（调试模式）
+gh-action-debug workflow debug .github/workflows/build.yml main --verbose
+```
+
+**输出示例（JSON）**：
+
+```json
+{
+  "success": false,
+  "run_id": 123456789,
+  "run_url": "https://github.com/...",
+  "status": "failure",
+  "duration": 45,
+  "errors": [
+    {
+      "job": "build",
+      "step": "Install dependencies",
+      "error_type": "missing_dependency",
+      "message": "Cannot find module 'express'",
+      "suggestions": [
+        "Add 'express' to package.json dependencies",
+        "Run: npm install express --save"
+      ]
+    }
+  ],
+  "suggestions": [
+    "Add 'express' to package.json",
+    "Run: npm install express --save"
+  ]
+}
+```
+
+**AI 工作流**：
+1. 推送代码到远程仓库
+2. 运行 `gh-action-debug workflow debug ... --output json`
+3. 解析 JSON 输出中的 `errors` 和 `suggestions`
+4. 应用建议自动修复
+5. 推送修复后的代码
+6. 重新运行验证，直到 `success: true`
+
+### 2. 列出工作流
+
+**功能**：查看仓库中的所有工作流
+
+**用法**：
+
+```bash
+# 列出所有工作流
+gh-action-debug workflow list
+
+# 输出示例：
+# 📋 工作流列表:
+#   - .github/workflows/build.yml (ID: 123456)
+#   - .github/workflows/test.yml (ID: 123457)
+#   - .github/workflows/release.yml (ID: 123458)
+```
+
+### 3. 触发工作流（不监控）
+
+**功能**：仅触发工作流，不等待结果
+
+**用法**：
+
+```bash
+# 触发工作流
+gh-action-debug workflow trigger .github/workflows/build.yml main
+
+# 带参数触发
+gh-action-debug workflow trigger .github/workflows/release.yml main \
+  --input version=1.0.0 \
+  --input prerelease=false
+```
+
+### 4. 获取工作流日志
+
+**功能**：获取工作流运行的完整日志
+
+**用法**：
+
+```bash
+# 获取最近一次运行的日志
+gh run list --workflow=build.yml --limit 1 --json databaseId --jq '.[0].databaseId' | xargs gh run view --log
+
+# 或直接使用 gh-action-debug 的日志输出
+# （debug 命令执行完毕后会输出完整日志）
+```
+
+### 5. GitHub CLI 直接调试（不推荐）
+
+**仅在工具脚本不可用时使用**：
+
+```bash
+# 查看工作流列表
+gh workflow list
+
+# 手动触发工作流
+gh workflow run build.yml --ref main
+
+# 查看最近的运行
+gh run list --workflow=build.yml --limit 5
+
+# 查看运行详情
+gh run view <run-id>
+
+# 查看失败日志
+gh run view <run-id> --log-failed
+```
+
+## 🐛 常见问题排查
+
+### 1. 权限错误
+
+**错误信息**：
+```
+Error: Resource not accessible by integration
+```
+
+**原因**：工作流权限不足
+
+**解决方案**：
+
+```yaml
+# 在工作流文件中添加权限
+permissions:
+  contents: write  # 或根据需要调整
+  issues: write
+  pull-requests: write
+```
+
+### 2. Token 无效
+
+**错误信息**：
+```
+Error: The token provided is invalid
+```
+
+**原因**：`GITHUB_TOKEN` 未正确配置
+
+**解决方案**：
+
+```yaml
+# ✅ 正确：使用默认 Token
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# ❌ 错误：Token 名称错误
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}  # 应该是 GITHUB_TOKEN
+```
+
+**注意**：`GITHUB_TOKEN` 是 GitHub Actions 自动提供的，不需要手动创建。
+
+### 3. 依赖安装失败
+
+**错误信息**：
+```
+npm ERR! Cannot find module 'xxx'
+```
+
+**原因**：依赖未正确安装或缓存问题
+
+**解决方案**：
+
+```yaml
+# 清除缓存并重新安装
+- name: Clear npm cache
+  run: npm cache clean --force
+
+- name: Install dependencies
+  run: npm ci  # 使用 ci 而不是 install
+
+# 或者禁用缓存
+- name: Setup Node.js
+  uses: actions/setup-node@v4
+  with:
+    node-version: '18'
+    # 暂时不使用缓存
+```
+
+### 4. 路径问题
+
+**错误信息**：
+```
+Error: ENOENT: no such file or directory
+```
+
+**原因**：文件路径不正确或文件不存在
+
+**解决方案**：
+
+```yaml
+# 调试：列出文件
+- name: Debug - List files
+  run: |
+    pwd
+    ls -la
+    ls -la dist/
+
+# 使用正确的路径
+- name: Upload artifact
+  uses: actions/upload-artifact@v4
+  with:
+    name: build-output
+    path: dist/  # 确认路径正确
+    if-no-files-found: error  # 找不到文件时报错
+```
+
+### 5. 环境变量未定义
+
+**错误信息**：
+```
+Error: Environment variable 'XXX' is not set
+```
+
+**解决方案**：
+
+```yaml
+# 在工作流或步骤中定义
+env:
+  XXX: value
+
+# 或使用默认值
+run: |
+  VALUE=${XXX:-default_value}
+  echo "Value: $VALUE"
+```
+
+## 📊 日志分析技巧
+
+### 1. 启用详细日志
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run with verbose logging
+        run: |
+          set -x  # Bash: 显示执行的命令
+          npm run build --verbose
+```
+
+### 2. 添加调试输出
+
+```yaml
+- name: Debug info
+  run: |
+    echo "Node version: $(node --version)"
+    echo "NPM version: $(npm --version)"
+    echo "Current directory: $(pwd)"
+    echo "Files: $(ls -la)"
+    echo "Environment variables:"
+    env | sort
+```
+
+### 3. 使用 tmate 远程调试（高级）
+
+```yaml
+# 仅在失败时启动 SSH 调试会话
+- name: Setup tmate session
+  if: failure()
+  uses: mxschmitt/action-tmate@v3
+  timeout-minutes: 30
+```
+
+## 🚫 禁止的调试方式
+
+1. **❌ 手动运行复杂命令**
+   ```bash
+   # 禁止这样做
+   gh workflow run build.yml && sleep 10 && gh run list
+   ```
+
+2. **❌ 猜测错误原因**
+   ```
+   禁止：看到失败就猜测原因并修改代码
+   正确：使用工具查看详细日志，确认错误后再修改
+   ```
+
+3. **❌ 不推送代码就测试**
+   ```bash
+   # 禁止这样做
+   vim .github/workflows/build.yml
+   gh-action-debug workflow debug .github/workflows/build.yml main  # 代码未推送！
+   ```
+
+4. **❌ 修改后不验证**
+   ```
+   禁止：修改代码后认为问题已解决，不进行测试
+   正确：每次修改后都要推送并触发测试验证
+   ```
+
+## ✅ 最佳实践
+
+1. **使用工具**: 优先使用 `gh-action-debug` 工具，输出 JSON 格式易于解析
+2. **查看完整日志**: 不要只看摘要，查看失败步骤的完整输出
+3. **逐步修复**: 一次只修复一个问题，修复后立即验证
+4. **保留调试代码**: 失败的调试步骤可以暂时保留，成功后再删除
+5. **记录解决方案**: 遇到新问题解决后，更新文档记录
+
+**可选配置**：如果项目使用 npm，可以在 `package.json` 中添加快捷脚本：
+
+```json
+{
+  "scripts": {
+    "ai-debug": "gh-action-debug workflow debug",
+    "workflow-list": "gh-action-debug workflow list"
+  }
+}
+```
+
+## 🎯 AI 助手行为要求
+
+当需要调试 GitHub Actions 时：
+
+1. ✅ **必须使用** `gh-action-debug workflow debug` 工具（如果项目配置了 npm script，也可以使用 `npm run ai-debug`）
+2. ✅ **必须先推送代码**到远程仓库
+3. ✅ **必须查看日志**，不能猜测错误
+4. ✅ **必须验证修复**，确保问题真正解决
+5. ✅ **必须使用 JSON 输出**，便于解析错误和建议（`--output json`）
+6. ❌ **严格禁止**手动编排 `gh workflow run` + `gh run watch` 等命令
+7. ❌ **严格禁止**不推送代码就触发测试
+8. ❌ **严格禁止**修改后不验证就认为问题已解决

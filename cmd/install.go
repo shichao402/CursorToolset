@@ -20,7 +20,7 @@ var installCmd = &cobra.Command{
 	Short: "安装工具集",
 	Long: `安装一个或多个工具集。
 
-如果不指定工具集名称，将安装 toolsets.json 中列出的所有工具集。
+如果不指定工具集名称，将安装 available-toolsets.json 中列出的所有工具集。
 如果指定了工具集名称，只安装该工具集。`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,7 +46,7 @@ var installCmd = &cobra.Command{
 		}
 		
 		if len(toolsets) == 0 {
-			return fmt.Errorf("toolsets.json 中没有找到工具集")
+			return fmt.Errorf("available-toolsets.json 中没有找到工具集")
 		}
 		
 		// 创建安装器
@@ -85,4 +85,5 @@ func init() {
 	installCmd.Flags().StringVarP(&installToolsetsDir, "toolsets-dir", "d", "", "工具集安装目录（默认: ./toolsets）")
 	installCmd.Flags().StringVarP(&installWorkDir, "work-dir", "w", "", "工作目录（默认: 当前目录）")
 }
+
 

@@ -27,7 +27,7 @@ var listCmd = &cobra.Command{
 		}
 		
 		if len(toolsets) == 0 {
-			fmt.Println("toolsets.json 中没有找到工具集")
+			fmt.Println("available-toolsets.json 中没有找到工具集")
 			return nil
 		}
 		
@@ -61,4 +61,5 @@ var listCmd = &cobra.Command{
 		return nil
 	},
 }
+
 
