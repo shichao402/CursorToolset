@@ -7,7 +7,24 @@ CursorToolset 从 v1.0.0 开始支持智能版本控制，可以：
 - 只在需要时更新，避免不必要的下载和构建
 - 对比本地和远程版本号
 
-## 版本号格式
+## 版本号管理
+
+### 单一数据源原则
+
+**所有版本号都从 `version.json` 文件读取**，这是版本号的唯一来源。
+
+```json
+{
+  "version": "v1.0.0",
+  "build_time": "",
+  "commit": "",
+  "branch": ""
+}
+```
+
+详细说明请查看 [VERSION_MANAGEMENT.md](./VERSION_MANAGEMENT.md)。
+
+### 版本号格式
 
 采用语义化版本号（Semantic Versioning）：`vMAJOR.MINOR.PATCH`
 
@@ -133,6 +150,8 @@ cursortoolset --version
 # 输出: cursortoolset version v1.0.0 (built at 2024-12-04_11:00:00)
 ```
 
+**版本号来源**：程序会从 `version.json` 读取版本号（如果编译时未注入）。
+
 ### 编程接口
 
 CursorToolset 提供了版本比较的 Go 包：
@@ -170,20 +189,26 @@ make build-all   # 构建所有平台，包含版本信息
 ### 手动构建
 
 ```bash
-# 获取 Git 标签作为版本
-VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
-BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+# Makefile 自动从 version.json 读取版本号
+make build
 
+# 或手动指定
+VERSION=$(cat version.json | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
 go build -ldflags "-X main.Version=$VERSION -X main.BuildTime=$BUILD_TIME" -o cursortoolset
 ```
 
+**重要**：版本号必须从 `version.json` 读取，不要硬编码或从其他来源获取。
+
 ### GitHub Actions 自动构建
 
-在 `.github/workflows/release.yml` 中：
-- 推送 tag 时自动触发
-- 使用 tag 名作为版本号
+在 `.github/workflows/build.yml` 和 `.github/workflows/release-process.yml` 中：
+- 从 `version.json` 读取版本号
+- 自动填充 `build_time`、`commit`、`branch` 字段
 - 构建多平台版本
 - 创建 GitHub Release
+
+**版本号来源**：始终从 `version.json` 读取，确保一致性。
 
 ## 版本发布流程
 

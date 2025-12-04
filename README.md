@@ -107,10 +107,13 @@ cursortoolset update --toolsets
 ```
 
 **智能版本控制**：
+- ✅ 版本号统一管理：`version.json` 作为唯一数据源
 - ✅ 自动检查版本号，只在有新版本时更新
 - ✅ 显示当前版本和最新版本对比
 - ✅ 避免不必要的下载和构建
-- 详细说明请查看 [VERSION_CONTROL.md](./VERSION_CONTROL.md)
+- 详细说明请查看：
+  - [VERSION_MANAGEMENT.md](./VERSION_MANAGEMENT.md) - 版本号管理规范
+  - [VERSION_CONTROL.md](./VERSION_CONTROL.md) - 版本比较和更新机制
 
 ## 配置文件
 
