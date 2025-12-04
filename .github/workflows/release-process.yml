@@ -147,9 +147,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Setup GitHub CLI
-        uses: actions/setup-cli@v1
-      
       - name: 查找 Build Pipeline 的最新运行
         id: find-build
         run: |
