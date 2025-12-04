@@ -67,9 +67,7 @@ var cleanCmd = &cobra.Command{
 		if !cleanForce {
 			fmt.Print("⚠️  此操作将删除已安装的工具集文件。是否继续？ [y/N]: ")
 			var response string
-			if _, err := fmt.Scanln(&response); err != nil {
-				return fmt.Errorf("读取用户输入失败: %w", err)
-			}
+			fmt.Scanln(&response)
 			if response != "y" && response != "Y" && response != "yes" {
 				fmt.Println("❌ 操作已取消")
 				return nil

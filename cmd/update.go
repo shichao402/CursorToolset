@@ -137,9 +137,7 @@ func updateSelfBinary() error {
 		// 询问用户是否继续
 		fmt.Print("  ⚠️  继续更新可能需要手动处理。是否继续？[y/N]: ")
 		var response string
-		if _, err := fmt.Scanln(&response); err != nil {
-			return fmt.Errorf("读取用户输入失败: %w", err)
-		}
+		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			return fmt.Errorf("用户取消更新")
 		}
@@ -196,9 +194,7 @@ func updateSelfBinary() error {
 	// 复制新文件
 	if err := copyFile(newBinaryPath, exePath); err != nil {
 		// 恢复备份
-		if renameErr := os.Rename(backupPath, exePath); renameErr != nil {
-			return fmt.Errorf("复制新文件失败: %w，且恢复备份也失败: %w", err, renameErr)
-		}
+		os.Rename(backupPath, exePath)
 		return fmt.Errorf("复制新文件失败: %w", err)
 	}
 
