@@ -90,9 +90,6 @@ func init() {
 
 // updateSelfBinary 更新 CursorToolset 自身
 func updateSelfBinary() error {
-	// 检查是否有新版本
-	fmt.Printf("  🔍 检查新版本...\n")
-	
 	// 从 version.json 读取当前版本
 	workDir, err := os.Getwd()
 	if err != nil {
@@ -105,23 +102,9 @@ func updateSelfBinary() error {
 		currentVer = GetVersion()
 		fmt.Printf("  ⚠️  无法读取 version.json，使用编译版本: %s\n", currentVer)
 	}
-	release, err := version.GetLatestRelease("firoyang", "CursorToolset")
-	if err != nil {
-		fmt.Printf("  ⚠️  无法检查版本: %v\n", err)
-		fmt.Printf("  ℹ️  继续尝试更新...\n")
-		// 继续执行更新
-	} else {
-		latestVer := release.TagName
-		fmt.Printf("  📌 当前版本: %s\n", currentVer)
-		fmt.Printf("  📌 最新版本: %s\n", latestVer)
-		
-		if !version.NeedUpdate(currentVer, latestVer) {
-			fmt.Printf("  ✅ 已是最新版本，无需更新\n")
-			return nil
-		}
-		
-		fmt.Printf("  🆕 发现新版本！\n")
-	}
+	
+	fmt.Printf("  📌 当前版本: %s\n", currentVer)
+	fmt.Printf("  🔄 开始更新...\n")
 	
 	// 获取当前可执行文件路径
 	exePath, err := os.Executable()

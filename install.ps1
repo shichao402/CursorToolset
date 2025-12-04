@@ -110,33 +110,11 @@ function Install-CursorToolset {
         }
         Pop-Location
     } else {
-        Write-ColorOutput "Go 未安装，尝试下载预编译版本..." -Type "Warning"
-        
-        # 获取最新版本号
-        try {
-            $apiResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/firoyang/CursorToolset/releases/latest"
-            $latestVersion = $apiResponse.tag_name
-        } catch {
-            Write-ColorOutput "无法获取最新版本" -Type "Warning"
-            Write-ColorOutput "请先安装 Go: https://go.dev/dl/" -Type "Error"
-            Remove-Item -Recurse -Force $tempDir
-            exit 1
-        }
-        
-        # 下载预编译版本
-        $binaryName = "cursortoolset-$PLATFORM.exe"
-        $downloadUrl = "https://github.com/firoyang/CursorToolset/releases/download/$latestVersion/$binaryName"
-        
-        Write-ColorOutput "下载 $latestVersion 版本..." -Type "Info"
-        try {
-            Invoke-WebRequest -Uri $downloadUrl -OutFile $binaryPath
-            Write-ColorOutput "下载成功" -Type "Success"
-        } catch {
-            Write-ColorOutput "下载失败: $_" -Type "Error"
-            Write-ColorOutput "请先安装 Go: https://go.dev/dl/" -Type "Error"
-            Remove-Item -Recurse -Force $tempDir
-            exit 1
-        }
+        Write-ColorOutput "Go 未安装，无法构建" -Type "Error"
+        Write-ColorOutput "请先安装 Go:" -Type "Error"
+        Write-ColorOutput "  下载地址: https://go.dev/dl/" -Type "Error"
+        Remove-Item -Recurse -Force $tempDir
+        exit 1
     }
     
     # 复制配置文件

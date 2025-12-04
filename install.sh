@@ -128,33 +128,13 @@ main() {
         
         print_success "构建成功"
     else
-        print_warning "Go 未安装，尝试下载预编译版本..."
-        
-        # 获取最新版本号
-        LATEST_VERSION=$(curl -fsSL https://api.github.com/repos/firoyang/CursorToolset/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "")
-        
-        if [ -z "${LATEST_VERSION}" ]; then
-            print_warning "无法获取最新版本，使用 main 分支构建"
-            print_error "请先安装 Go："
-            print_error "  macOS: brew install go"
-            print_error "  Linux: https://go.dev/doc/install"
-            rm -rf "${TEMP_DIR}"
-            exit 1
-        fi
-        
-        # 下载预编译版本
-        BINARY_NAME="cursortoolset-${PLATFORM}"
-        DOWNLOAD_URL="https://github.com/firoyang/CursorToolset/releases/download/${LATEST_VERSION}/${BINARY_NAME}"
-        
-        print_info "下载 ${LATEST_VERSION} 版本..."
-        if curl -fsSL -o "${BINARY_PATH}" "${DOWNLOAD_URL}"; then
-            chmod +x "${BINARY_PATH}"
-            print_success "下载成功"
-        else
-            print_error "下载失败，请先安装 Go 并重试"
-            rm -rf "${TEMP_DIR}"
-            exit 1
-        fi
+        print_error "Go 未安装，无法构建"
+        print_error "请先安装 Go："
+        print_error "  macOS: brew install go"
+        print_error "  Linux: https://go.dev/doc/install"
+        print_error "  Windows: https://go.dev/dl/"
+        rm -rf "${TEMP_DIR}"
+        exit 1
     fi
     
     # 复制配置文件

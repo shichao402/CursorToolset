@@ -1,10 +1,7 @@
 package version
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 )
@@ -70,53 +67,6 @@ func extractNumber(s string) int {
 	return num
 }
 
-// GitHubRelease GitHub Release 信息
-type GitHubRelease struct {
-	TagName string `json:"tag_name"`
-	Name    string `json:"name"`
-	Body    string `json:"body"`
-	HTMLURL string `json:"html_url"`
-}
-
-// GetLatestRelease 获取 GitHub 仓库的最新 Release
-func GetLatestRelease(owner, repo string) (*GitHubRelease, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	
-	// 创建请求并添加 User-Agent 头
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-	req.Header.Set("User-Agent", "CursorToolset/1.0")
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode == 404 {
-		return nil, fmt.Errorf("未找到任何 Release")
-	}
-	
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("请求失败，状态码: %d", resp.StatusCode)
-	}
-	
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-	
-	var release GitHubRelease
-	if err := json.Unmarshal(body, &release); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
-	}
-	
-	return &release, nil
-}
 
 // NeedUpdate 检查是否需要更新
 func NeedUpdate(currentVersion, latestVersion string) bool {
