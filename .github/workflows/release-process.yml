@@ -140,84 +140,75 @@ jobs:
           echo "  - ReleaseLatest: https://github.com/${{ github.repository }}/tree/ReleaseLatest"
           echo "  - $VERSIONED_BRANCH: https://github.com/${{ github.repository }}/tree/$VERSIONED_BRANCH"
 
-  # 构建 Release 版本
-  build-release:
-    name: 构建 Release ${{ matrix.os }}-${{ matrix.arch }}
-    needs: [validate, create-release-branches]
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - os: linux
-            arch: amd64
-            runner: ubuntu-latest
-          - os: linux
-            arch: arm64
-            runner: ubuntu-latest
-          - os: darwin
-            arch: amd64
-            runner: macos-latest
-          - os: darwin
-            arch: arm64
-            runner: macos-latest
-          - os: windows
-            arch: amd64
-            runner: windows-latest
+  # 下载 Build Pipeline 的构建产物
+  download-build-artifacts:
+    name: 下载构建产物
+    needs: [validate]
+    runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout ReleaseLatest
-        uses: actions/checkout@v4
-        with:
-          ref: ReleaseLatest
+      - name: Setup GitHub CLI
+        uses: actions/setup-cli@v1
       
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          cache: true
-      
-      - name: 构建 Release 版本
+      - name: 查找 Build Pipeline 的最新运行
+        id: find-build
+        run: |
+          BUILD_BRANCH="${{ needs.validate.outputs.build_branch }}"
+          
+          echo "🔍 查找 Build Pipeline 在分支 '$BUILD_BRANCH' 上的最新成功运行..."
+          
+          # 查找对应 build 分支的最新成功运行
+          BUILD_RUN=$(gh run list --workflow=build.yml --branch "$BUILD_BRANCH" --status success --limit 1 --json databaseId --jq '.[0].databaseId' || echo "")
+          
+          if [ -z "$BUILD_RUN" ] || [ "$BUILD_RUN" = "null" ]; then
+            echo "❌ 错误: 未找到 Build Pipeline 在分支 '$BUILD_BRANCH' 上的成功运行"
+            echo "💡 提示: 请先运行 Build Pipeline 并确保构建成功"
+            echo "💡 提示: Build Pipeline 应该在分支 '$BUILD_BRANCH' 上运行"
+            exit 1
+          fi
+          
+          echo "build_run_id=$BUILD_RUN" >> $GITHUB_OUTPUT
+          echo "✅ 找到 Build Pipeline 运行: $BUILD_RUN"
+          echo "🔗 运行链接: https://github.com/${{ github.repository }}/actions/runs/$BUILD_RUN"
         env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          VERSION: ${{ needs.validate.outputs.version }}
-          BUILD_TIME: ${{ github.event.repository.updated_at }}
-        run: |
-          echo "🔨 构建 Release 版本 $VERSION"
-          
-          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-          
-          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
-          go build -ldflags "-X main.Version=$VERSION -X main.BuildTime=$BUILD_TIME" -o "$BINARY_NAME" .
-          
-          echo "✅ 构建完成"
-          ls -lh "$BINARY_NAME"
-        shell: bash
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 生成校验和
-        run: |
-          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-          
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$BINARY_NAME" > "$BINARY_NAME.sha256"
-          else
-            shasum -a 256 "$BINARY_NAME" > "$BINARY_NAME.sha256"
-          fi
-        shell: bash
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.find-build.outputs.build_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build-artifacts
       
-      - name: 上传 Release 产物
+      - name: 整理构建产物
+        run: |
+          echo "📦 原始构建产物列表:"
+          find build-artifacts -type f | sort || true
+          
+          # 创建统一目录
+          mkdir -p release-artifacts
+          
+          # 复制所有 cursortoolset-* 文件（包括二进制文件和校验和）
+          find build-artifacts -type f \( -name "cursortoolset-*" -o -name "*.sha256" \) -exec cp {} release-artifacts/ \;
+          
+          echo ""
+          echo "✅ 整理后的构建产物:"
+          ls -lh release-artifacts/ | sort
+          
+          # 验证文件数量（应该有 10 个文件：5 个二进制 + 5 个校验和）
+          FILE_COUNT=$(find release-artifacts -type f | wc -l)
+          echo "📊 文件总数: $FILE_COUNT"
+          
+          if [ "$FILE_COUNT" -lt 5 ]; then
+            echo "⚠️  警告: 文件数量少于预期（至少应该有 5 个二进制文件）"
+          fi
+      
+      - name: 上传整理后的产物
         uses: actions/upload-artifact@v4
         with:
-          name: release-cursortoolset-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            cursortoolset-*
-          retention-days: 90
+          name: release-binaries
+          path: release-artifacts/*
+          retention-days: 1
 
   # 创建 GitHub Release
   create-github-release:
@@ -381,7 +372,7 @@ jobs:
   # 发布总结
   release-summary:
     name: 发布总结
-    needs: [validate, create-release-branches, build-release, create-github-release]
+    needs: [validate, create-release-branches, download-build-artifacts, create-github-release]
     if: always()
     runs-on: ubuntu-latest
     
