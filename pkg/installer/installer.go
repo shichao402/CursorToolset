@@ -61,7 +61,16 @@ func (i *Installer) InstallToolset(toolsetInfo *types.ToolsetInfo) error {
 		return fmt.Errorf("读取 toolset.json 失败: %w", err)
 	}
 	
-	// 4. 执行安装（拷贝文件）
+	// 4. 执行构建脚本（如果定义）
+	if installScript, ok := toolset.Scripts["install"]; ok && installScript != "" {
+		fmt.Printf("  🔨 执行构建脚本...\n")
+		if err := i.runScript(installScript, toolsetPath); err != nil {
+			return fmt.Errorf("执行构建脚本失败: %w", err)
+		}
+		fmt.Printf("  ✅ 构建完成\n")
+	}
+	
+	// 5. 执行安装（拷贝文件）
 	if err := i.copyFiles(toolset, toolsetPath); err != nil {
 		return fmt.Errorf("拷贝文件失败: %w", err)
 	}
@@ -592,5 +601,46 @@ func (i *Installer) calculateDirSHA256(dir string) (string, error) {
 	}
 	
 	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// runScript 执行安装脚本
+func (i *Installer) runScript(script, workDir string) error {
+	// 解析脚本命令（支持 bash script.sh 或直接 ./script.sh）
+	var cmd *exec.Cmd
+	
+	// 简单解析：如果以 bash 开头，分离出 bash 和脚本路径
+	parts := strings.Fields(script)
+	if len(parts) == 0 {
+		return fmt.Errorf("空脚本命令")
+	}
+	
+	// 检查脚本文件是否存在
+	var scriptPath string
+	if parts[0] == "bash" || parts[0] == "sh" {
+		if len(parts) < 2 {
+			return fmt.Errorf("无效的脚本命令: %s", script)
+		}
+		scriptPath = filepath.Join(workDir, parts[1])
+		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+			fmt.Printf("  ⚠️  脚本不存在: %s\n", parts[1])
+			fmt.Printf("      跳过构建步骤，如果工具集需要构建，请查看其文档\n")
+			return nil // 不返回错误，允许继续安装
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	} else {
+		scriptPath = filepath.Join(workDir, parts[0])
+		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+			fmt.Printf("  ⚠️  脚本不存在: %s\n", parts[0])
+			fmt.Printf("      跳过构建步骤，如果工具集需要构建，请查看其文档\n")
+			return nil // 不返回错误，允许继续安装
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+	
+	cmd.Dir = workDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
+	return cmd.Run()
 }
 
