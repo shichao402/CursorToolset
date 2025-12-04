@@ -48,6 +48,11 @@ func (i *Installer) InstallToolset(toolsetInfo *types.ToolsetInfo) error {
 		return fmt.Errorf("拷贝文件失败: %w", err)
 	}
 	
+	// 4. 验证可执行文件是否已安装
+	if err := i.validateExecutables(toolset); err != nil {
+		return fmt.Errorf("验证可执行文件失败: %w", err)
+	}
+	
 	fmt.Printf("✅ 工具集 %s 安装完成\n", toolsetInfo.DisplayName)
 	return nil
 }
@@ -131,9 +136,16 @@ func (i *Installer) copyTarget(targetPath string, target types.InstallTarget, so
 	
 	// 检查源路径是否存在
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+		// 如果是可执行文件，必须存在，否则安装失败
+		if target.Executable {
+			return fmt.Errorf("可执行文件不存在: %s (源路径: %s)\n"+
+				"提示：工具集可能需要在安装前构建。请查看工具集文档或联系工具集维护者", 
+				targetPath, sourcePath)
+		}
+		// 非可执行文件可以跳过
 		fmt.Printf("  ⚠️  跳过目标 %s：源路径不存在 (%s)\n", targetPath, sourcePath)
 		fmt.Printf("      提示：可能需要先构建工具。请查看工具集文档。\n")
-		return nil // 不返回错误，允许继续安装其他目标
+		return nil
 	}
 	
 	// 确保目标目录存在
@@ -159,8 +171,13 @@ func (i *Installer) copyTarget(targetPath string, target types.InstallTarget, so
 		}
 	}
 	
-	// 如果没有匹配到任何文件，给出提示
+	// 如果没有匹配到任何文件，检查是否为可执行文件
 	if !hasMatchedFiles && len(target.Files) > 0 {
+		if target.Executable {
+			return fmt.Errorf("可执行文件未找到: 目标 %s，文件模式 %v\n"+
+				"提示：工具集可能需要在安装前构建。请查看工具集文档或联系工具集维护者",
+				targetPath, target.Files)
+		}
 		fmt.Printf("  ⚠️  目标 %s：没有匹配到文件 (模式: %v)\n", targetPath, target.Files)
 		fmt.Printf("      提示：可能需要先构建工具或检查文件模式。\n")
 	}
@@ -407,6 +424,77 @@ func (i *Installer) copyFile(source, target string, executable bool) error {
 	
 	if err := os.WriteFile(target, data, mode); err != nil {
 		return err
+	}
+	
+	return nil
+}
+
+// validateExecutables 验证所有标记为可执行文件的目标是否已安装
+func (i *Installer) validateExecutables(toolset *types.Toolset) error {
+	var missingExecutables []string
+	
+	for targetPath, target := range toolset.Install.Targets {
+		if !target.Executable {
+			continue
+		}
+		
+		fullTargetPath := filepath.Join(i.WorkDir, targetPath)
+		
+		// 检查目标路径是否存在
+		info, err := os.Stat(fullTargetPath)
+		if os.IsNotExist(err) {
+			missingExecutables = append(missingExecutables, targetPath)
+			continue
+		}
+		
+		// 如果指定了文件列表，检查每个文件是否存在
+		if len(target.Files) > 0 {
+			hasFile := false
+			for _, filePattern := range target.Files {
+				// 处理 glob 模式
+				var matches []string
+				if strings.Contains(filePattern, "*") {
+					matches, _ = filepath.Glob(filepath.Join(fullTargetPath, filePattern))
+				} else {
+					filePath := filepath.Join(fullTargetPath, filePattern)
+					if _, err := os.Stat(filePath); err == nil {
+						matches = []string{filePath}
+					}
+				}
+				if len(matches) > 0 {
+					hasFile = true
+					break
+				}
+			}
+			if !hasFile {
+				missingExecutables = append(missingExecutables, targetPath)
+			}
+		} else {
+			// 如果没有指定文件列表，检查目标路径是否为文件
+			if info.IsDir() {
+				// 如果是目录，检查目录中是否有可执行文件
+				hasExecutable := false
+				err := filepath.Walk(fullTargetPath, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						return nil
+					}
+					if !info.IsDir() && (info.Mode()&0111 != 0 || runtime.GOOS == "windows") {
+						hasExecutable = true
+						return filepath.SkipAll
+					}
+					return nil
+				})
+				if err == nil && !hasExecutable {
+					missingExecutables = append(missingExecutables, targetPath)
+				}
+			}
+		}
+	}
+	
+	if len(missingExecutables) > 0 {
+		return fmt.Errorf("以下可执行文件未安装:\n  %s\n"+
+			"提示：工具集可能需要在安装前构建。请查看工具集文档或联系工具集维护者",
+			strings.Join(missingExecutables, "\n  "))
 	}
 	
 	return nil

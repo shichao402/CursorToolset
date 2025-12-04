@@ -3,6 +3,7 @@ package installer
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/firoyang/CursorToolset/pkg/types"
@@ -55,8 +56,11 @@ func TestCopyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to stat target file: %v", err)
 	}
-	if info.Mode().Perm() != 0644 {
-		t.Errorf("Expected file mode 0644, got %o", info.Mode().Perm())
+	// Windows 上的文件权限显示不同，跳过权限检查
+	if runtime.GOOS != "windows" {
+		if info.Mode().Perm() != 0644 {
+			t.Errorf("Expected file mode 0644, got %o", info.Mode().Perm())
+		}
 	}
 }
 
@@ -82,8 +86,11 @@ func TestCopyFileExecutable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to stat target file: %v", err)
 	}
-	if info.Mode().Perm() != 0755 {
-		t.Errorf("Expected file mode 0755, got %o", info.Mode().Perm())
+	// Windows 上的文件权限显示不同，跳过权限检查
+	if runtime.GOOS != "windows" {
+		if info.Mode().Perm() != 0755 {
+			t.Errorf("Expected file mode 0755, got %o", info.Mode().Perm())
+		}
 	}
 }
 
