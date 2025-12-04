@@ -147,6 +147,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
       - name: 查找 Build Pipeline 的最新运行
         id: find-build
         run: |
