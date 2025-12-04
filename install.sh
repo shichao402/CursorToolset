@@ -1,6 +1,6 @@
 #!/bin/bash
 # CursorToolset 一键安装脚本 (Linux/macOS)
-# 使用方法: curl -fsSL https://raw.githubusercontent.com/firoyang/CursorToolset/main/install.sh | bash
+# 使用方法: curl -fsSL https://raw.githubusercontent.com/firoyang/CursorToolset/ReleaseLatest/install.sh | bash
 
 set -e
 
@@ -66,11 +66,6 @@ detect_platform() {
 check_dependencies() {
     print_info "检查依赖..."
     
-    if ! command -v git &> /dev/null; then
-        print_error "Git 未安装。请先安装 Git。"
-        exit 1
-    fi
-    
     if ! command -v curl &> /dev/null; then
         print_error "curl 未安装。请先安装 curl。"
         exit 1
@@ -79,12 +74,42 @@ check_dependencies() {
     print_success "依赖检查通过"
 }
 
+# 比较版本号（简单比较，v1.0.1 > v1.0.0）
+compare_versions() {
+    local v1="$1"
+    local v2="$2"
+    
+    # 移除 v 前缀
+    v1="${v1#v}"
+    v2="${v2#v}"
+    
+    # 分割版本号
+    IFS='.' read -ra v1_parts <<< "$v1"
+    IFS='.' read -ra v2_parts <<< "$v2"
+    
+    # 比较每个部分
+    for i in 0 1 2; do
+        local v1_part="${v1_parts[$i]:-0}"
+        local v2_part="${v2_parts[$i]:-0}"
+        
+        if [ "$v1_part" -gt "$v2_part" ]; then
+            echo "1"
+            return
+        elif [ "$v1_part" -lt "$v2_part" ]; then
+            echo "-1"
+            return
+        fi
+    done
+    
+    echo "0"
+}
+
 # 主安装函数
 main() {
     echo ""
     echo "╔═══════════════════════════════════════╗"
     echo "║   CursorToolset 一键安装脚本          ║"
-    echo "╚═══════════════════════════════════════╝"
+    echo "╚═══════════════════════════════════════╗"
     echo ""
     
     # 检查依赖
@@ -101,82 +126,68 @@ main() {
     
     print_info "安装目录: ${INSTALL_DIR}"
     
+    # 从 ReleaseLatest 分支获取版本号（唯一来源）
+    print_info "获取最新版本号..."
+    VERSION_JSON=$(curl -fsSL "https://raw.githubusercontent.com/firoyang/CursorToolset/ReleaseLatest/version.json" 2>/dev/null)
+    
+    if [ -z "${VERSION_JSON}" ]; then
+        print_error "无法从 ReleaseLatest 分支获取版本信息"
+        print_error "请检查网络连接或稍后重试"
+        exit 1
+    fi
+    
+    LATEST_VERSION=$(echo "${VERSION_JSON}" | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+    
+    if [ -z "${LATEST_VERSION}" ]; then
+        print_error "无法解析版本号"
+        exit 1
+    fi
+    
+    print_info "最新版本: ${LATEST_VERSION}"
+    
+    # 检查是否已安装
+    CURRENT_VERSION=""
+    if [ -x "${BINARY_PATH}" ]; then
+        CURRENT_VERSION=$("${BINARY_PATH}" --version 2>&1 | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "")
+        if [ -n "${CURRENT_VERSION}" ]; then
+            print_info "当前已安装版本: ${CURRENT_VERSION}"
+            
+            # 比较版本
+            COMPARE_RESULT=$(compare_versions "${CURRENT_VERSION}" "${LATEST_VERSION}")
+            if [ "${COMPARE_RESULT}" -ge "0" ]; then
+                print_success "已是最新版本，无需更新"
+                exit 0
+            else
+                print_info "发现新版本，准备更新..."
+            fi
+        fi
+    fi
+    
     # 创建安装目录
     print_info "创建安装目录..."
     mkdir -p "${BIN_DIR}"
     
-    # 尝试从 GitHub Releases 下载预编译版本
-    print_info "尝试下载预编译版本..."
-    
-    # 从 ReleaseLatest 分支获取版本号
-    VERSION=$(curl -fsSL https://raw.githubusercontent.com/firoyang/CursorToolset/ReleaseLatest/version.json 2>/dev/null | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
-    
-    if [ -z "${VERSION}" ]; then
-        print_warning "无法获取版本号，尝试使用 latest 标签"
-        VERSION="latest"
-    else
-        print_info "检测到版本: ${VERSION}"
-    fi
-    
-    # 构建下载 URL
+    # 构建下载 URL（使用版本号）
     BINARY_NAME="cursortoolset-${PLATFORM}"
-    if [ "${VERSION}" = "latest" ]; then
-        DOWNLOAD_URL="https://github.com/firoyang/CursorToolset/releases/latest/download/${BINARY_NAME}"
-    else
-        DOWNLOAD_URL="https://github.com/firoyang/CursorToolset/releases/download/${VERSION}/${BINARY_NAME}"
+    DOWNLOAD_URL="https://github.com/firoyang/CursorToolset/releases/download/${LATEST_VERSION}/${BINARY_NAME}"
+    
+    # 下载预编译版本
+    print_info "下载预编译版本..."
+    if ! curl -fsSL -o "${BINARY_PATH}" "${DOWNLOAD_URL}"; then
+        print_error "下载预编译版本失败"
+        print_error "下载 URL: ${DOWNLOAD_URL}"
+        print_error "请确保该版本已发布到 GitHub Releases"
+        exit 1
     fi
     
-    # 尝试下载预编译版本
-    print_info "从 GitHub Releases 下载..."
-    if curl -fsSL -o "${BINARY_PATH}" "${DOWNLOAD_URL}" 2>/dev/null; then
-        chmod +x "${BINARY_PATH}"
-        print_success "预编译版本下载成功"
-        
-        # 下载配置文件
-        print_info "下载配置文件..."
-        curl -fsSL -o "${INSTALL_DIR}/available-toolsets.json" \
-            "https://raw.githubusercontent.com/firoyang/CursorToolset/ReleaseLatest/available-toolsets.json" 2>/dev/null || \
-            print_warning "配置文件下载失败，将使用默认配置"
-    else
-        print_warning "预编译版本下载失败，尝试从源码构建..."
-        
-        # 回退到源码构建
-        TEMP_DIR=$(mktemp -d)
-        print_info "克隆仓库到临时目录: ${TEMP_DIR}"
-        
-        if ! git clone --depth 1 https://github.com/firoyang/CursorToolset.git "${TEMP_DIR}"; then
-            print_error "克隆仓库失败"
-            rm -rf "${TEMP_DIR}"
-            exit 1
-        fi
-        
-        # 检查是否安装了 Go
-        if ! command -v go &> /dev/null; then
-            print_error "Go 未安装，无法构建"
-            print_error "请先安装 Go："
-            print_error "  macOS: brew install go"
-            print_error "  Linux: https://go.dev/doc/install"
-            rm -rf "${TEMP_DIR}"
-            exit 1
-        fi
-        
-        print_info "使用 Go 构建..."
-        cd "${TEMP_DIR}"
-        
-        if ! go build -o "${BINARY_PATH}" .; then
-            print_error "构建失败"
-            rm -rf "${TEMP_DIR}"
-            exit 1
-        fi
-        
-        print_success "构建成功"
-        
-        # 复制配置文件
-        print_info "复制配置文件..."
-        cp "${TEMP_DIR}/available-toolsets.json" "${INSTALL_DIR}/"
-        
-        # 清理临时目录
-        rm -rf "${TEMP_DIR}"
+    chmod +x "${BINARY_PATH}"
+    print_success "预编译版本下载成功"
+    
+    # 下载配置文件
+    print_info "下载配置文件..."
+    if ! curl -fsSL -o "${INSTALL_DIR}/available-toolsets.json" \
+        "https://raw.githubusercontent.com/firoyang/CursorToolset/ReleaseLatest/available-toolsets.json"; then
+        print_warning "配置文件下载失败，将使用默认配置"
     fi
     
     # 添加到 PATH
@@ -214,8 +225,8 @@ main() {
     # 验证安装
     print_info "验证安装..."
     if [[ -x "${BINARY_PATH}" ]]; then
-        VERSION=$("${BINARY_PATH}" --version 2>&1 || echo "unknown")
-        print_success "安装成功！版本: ${VERSION}"
+        INSTALLED_VERSION=$("${BINARY_PATH}" --version 2>&1 || echo "unknown")
+        print_success "安装成功！版本: ${INSTALLED_VERSION}"
     else
         print_error "安装失败：可执行文件不存在或无执行权限"
         exit 1
@@ -245,4 +256,3 @@ main() {
 
 # 运行主函数
 main
-
