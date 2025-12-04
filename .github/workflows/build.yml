@@ -1,0 +1,214 @@
+name: Build Pipeline
+
+# 触发条件：build 分支被创建或推送
+on:
+  push:
+    branches:
+      - 'build'
+      - 'build-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '构建版本号（如 v1.0.1）'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  # 构建信息
+  build-info:
+    name: 准备构建信息
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_time: ${{ steps.version.outputs.build_time }}
+      branch: ${{ steps.version.outputs.branch }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 生成版本信息
+        id: version
+        run: |
+          # 获取版本号
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # 从分支名提取版本号，如 build-v1.0.1
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            if [[ "$BRANCH" =~ build-v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              VERSION="v${BASH_REMATCH[1]}"
+            else
+              # 使用 Git 标签或 commit hash
+              VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev-$(git rev-parse --short HEAD)")
+            fi
+          fi
+          
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          
+          echo "📦 构建版本: $VERSION"
+          echo "⏰ 构建时间: $BUILD_TIME"
+          echo "🌿 构建分支: $BRANCH"
+
+  # 多平台构建
+  build:
+    name: 构建 ${{ matrix.os }}-${{ matrix.arch }}
+    needs: build-info
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          # macOS
+          - os: darwin
+            arch: amd64
+            runner: macos-latest
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+          # Windows
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+      
+      - name: 构建
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          VERSION: ${{ needs.build-info.outputs.version }}
+          BUILD_TIME: ${{ needs.build-info.outputs.build_time }}
+        run: |
+          echo "🔨 开始构建 ${{ matrix.os }}-${{ matrix.arch }}"
+          echo "📌 版本: $VERSION"
+          
+          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          
+          go build -ldflags "-X main.Version=$VERSION -X main.BuildTime=$BUILD_TIME" -o "$BINARY_NAME" .
+          
+          echo "✅ 构建完成: $BINARY_NAME"
+          ls -lh "$BINARY_NAME"
+        shell: bash
+      
+      - name: 测试可执行文件
+        run: |
+          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          
+          echo "🧪 测试可执行文件..."
+          chmod +x "$BINARY_NAME" || true
+          ./"$BINARY_NAME" --version
+          
+          echo "✅ 可执行文件测试通过"
+        shell: bash
+      
+      - name: 生成校验和
+        run: |
+          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$BINARY_NAME" > "$BINARY_NAME.sha256"
+          else
+            shasum -a 256 "$BINARY_NAME" > "$BINARY_NAME.sha256"
+          fi
+          
+          echo "📋 校验和:"
+          cat "$BINARY_NAME.sha256"
+        shell: bash
+      
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursortoolset-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            cursortoolset-*
+          retention-days: 30
+  
+  # 构建总结
+  build-summary:
+    name: 构建总结
+    needs: [build-info, build]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: 生成构建总结
+        run: |
+          echo "# 构建总结" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: ${{ needs.build-info.outputs.build_time }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ needs.build-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 构建产物" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 平台 | 架构 | 大小 | SHA256 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in cursortoolset-*; do
+              if [[ ! "$file" =~ \.sha256$ ]]; then
+                SIZE=$(ls -lh "$file" | awk '{print $5}')
+                SHA=$(cat "${file}.sha256" 2>/dev/null | awk '{print substr($1,1,16)"..."}' || echo "N/A")
+                PLATFORM=$(echo "$file" | sed 's/cursortoolset-//' | sed 's/-.*//')
+                ARCH=$(echo "$file" | sed 's/.*-//' | sed 's/\.exe$//')
+                echo "| $PLATFORM | $ARCH | $SIZE | \`$SHA\` |" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+            cd ..
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ 构建状态" >> $GITHUB_STEP_SUMMARY
+          echo "所有平台构建成功！" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 下载构建产物" >> $GITHUB_STEP_SUMMARY
+          echo "构建产物已上传到 GitHub Actions Artifacts，保留 30 天。" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 下一步" >> $GITHUB_STEP_SUMMARY
+          echo "如需发布，请运行 **Release Pipeline** 工作流，指定此构建的版本号。" >> $GITHUB_STEP_SUMMARY
+      
+      - name: 列出所有构建产物
+        run: |
+          echo "📦 所有构建产物:"
+          find artifacts -type f ! -name "*.sha256" -exec ls -lh {} \;
+
