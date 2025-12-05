@@ -116,11 +116,11 @@ jobs:
           LOG_DIR: logs
         run: |
           # 确保构建脚本有执行权限
-          chmod +x build.sh
+          chmod +x scripts/build.sh
           
           # 直接调用构建脚本，它会自动检测 GOOS 和 GOARCH 环境变量
           # 并构建指定的平台版本
-          ./build.sh --no-clean
+          ./scripts/build.sh --no-clean
         shell: bash
       
       - name: 测试可执行文件
