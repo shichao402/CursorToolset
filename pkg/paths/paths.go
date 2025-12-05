@@ -9,9 +9,6 @@ const (
 	// EnvRootDir 环境变量名，用于指定 CursorToolset 根目录
 	// 类似于 pip 的 PYTHONUSERBASE，brew 的 HOMEBREW_PREFIX
 	EnvRootDir = "CURSOR_TOOLSET_HOME"
-
-	// RegistryURL 默认的 registry 下载地址
-	RegistryURL = "https://github.com/firoyang/CursorToolset/releases/download/registry/registry.json"
 )
 
 // 目录结构设计（参考 pip/brew）：

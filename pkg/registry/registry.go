@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/firoyang/CursorToolset/pkg/config"
 	"github.com/firoyang/CursorToolset/pkg/downloader"
 	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/firoyang/CursorToolset/pkg/types"
@@ -38,7 +39,7 @@ func (m *Manager) Update() error {
 	}
 
 	m.downloader.SetShowProgress(true)
-	if err := m.downloader.DownloadFile(paths.RegistryURL, registryPath); err != nil {
+	if err := m.downloader.DownloadFile(config.GetRegistryURL(), registryPath); err != nil {
 		return fmt.Errorf("下载 registry 失败: %w", err)
 	}
 
