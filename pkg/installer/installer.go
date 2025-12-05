@@ -1,8 +1,11 @@
 package installer
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/firoyang/CursorToolset/pkg/downloader"
 	"github.com/firoyang/CursorToolset/pkg/paths"
@@ -72,6 +75,12 @@ func (i *Installer) Install(manifest *types.Manifest) error {
 
 	fmt.Printf("✅ %s 安装完成\n", manifest.Name)
 	
+	// 创建可执行程序的符号链接
+	if err := i.linkBinaries(manifest, packagePath); err != nil {
+		fmt.Printf("  ⚠️  创建可执行程序链接失败: %v\n", err)
+		// 不返回错误，让安装继续
+	}
+	
 	// 友好提示：如何使用规则文件
 	printInstallTip(packagePath, manifest.Name)
 	
@@ -91,6 +100,16 @@ func (i *Installer) Uninstall(packageName string) error {
 	if _, err := os.Stat(packagePath); os.IsNotExist(err) {
 		fmt.Printf("  ℹ️  包未安装\n")
 		return nil
+	}
+
+	// 读取包的 manifest 以获取 bin 配置
+	manifest, err := i.loadPackageManifest(packagePath)
+	if err == nil && manifest != nil {
+		// 清理可执行程序的符号链接
+		if err := i.unlinkBinaries(manifest); err != nil {
+			fmt.Printf("  ⚠️  清理可执行程序链接失败: %v\n", err)
+			// 继续执行，不阻断卸载流程
+		}
 	}
 
 	// 删除包目录
@@ -113,6 +132,139 @@ func printInstallTip(packagePath, packageName string) {
 		fmt.Printf("   ln -sf %s .cursor/rules/%s\n", rulesPath, packageName)
 		fmt.Printf("\n   详细文档: https://github.com/firoyang/CursorToolset/blob/main/USAGE_EXAMPLE.md\n")
 	}
+}
+
+// linkBinaries 为包中配置的可执行程序创建符号链接到 bin 目录
+func (i *Installer) linkBinaries(manifest *types.Manifest, packagePath string) error {
+	if len(manifest.Bin) == 0 {
+		return nil
+	}
+
+	binDir, err := paths.GetBinDir()
+	if err != nil {
+		return err
+	}
+
+	// 确保 bin 目录存在
+	if err := paths.EnsureDir(binDir); err != nil {
+		return err
+	}
+
+	fmt.Printf("  🔗 创建可执行程序链接...\n")
+
+	for cmdName, relPath := range manifest.Bin {
+		// 源文件（包中的可执行程序）
+		srcPath := filepath.Join(packagePath, relPath)
+		
+		// 检查源文件是否存在
+		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+			fmt.Printf("    ⚠️  跳过 %s: 文件不存在 (%s)\n", cmdName, relPath)
+			continue
+		}
+
+		// 目标链接路径
+		linkPath := filepath.Join(binDir, cmdName)
+
+		// Windows 平台处理
+		if runtime.GOOS == "windows" {
+			// Windows 使用 .exe 扩展名
+			if filepath.Ext(cmdName) != ".exe" {
+				linkPath += ".exe"
+			}
+			if filepath.Ext(srcPath) != ".exe" {
+				srcPath += ".exe"
+			}
+		}
+
+		// 如果链接已存在，先删除
+		if _, err := os.Lstat(linkPath); err == nil {
+			if err := os.Remove(linkPath); err != nil {
+				fmt.Printf("    ⚠️  无法删除旧链接 %s: %v\n", cmdName, err)
+				continue
+			}
+		}
+
+		// 创建符号链接
+		if err := os.Symlink(srcPath, linkPath); err != nil {
+			fmt.Printf("    ⚠️  无法创建链接 %s: %v\n", cmdName, err)
+			continue
+		}
+
+		// 确保源文件可执行（Unix 系统）
+		if runtime.GOOS != "windows" {
+			if err := os.Chmod(srcPath, 0755); err != nil {
+				fmt.Printf("    ⚠️  无法设置执行权限 %s: %v\n", cmdName, err)
+			}
+		}
+
+		fmt.Printf("    ✅ %s -> %s\n", cmdName, relPath)
+	}
+
+	// 打印 PATH 提示
+	fmt.Printf("\n  💡 将 bin 目录添加到 PATH:\n")
+	if runtime.GOOS == "windows" {
+		fmt.Printf("    set PATH=%s;%%PATH%%\n", binDir)
+	} else {
+		fmt.Printf("    export PATH=\"%s:$PATH\"\n", binDir)
+	}
+	fmt.Println()
+
+	return nil
+}
+
+// unlinkBinaries 清理包中配置的可执行程序的符号链接
+func (i *Installer) unlinkBinaries(manifest *types.Manifest) error {
+	if len(manifest.Bin) == 0 {
+		return nil
+	}
+
+	binDir, err := paths.GetBinDir()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  🔗 清理可执行程序链接...\n")
+
+	for cmdName := range manifest.Bin {
+		linkPath := filepath.Join(binDir, cmdName)
+
+		// Windows 平台处理
+		if runtime.GOOS == "windows" && filepath.Ext(cmdName) != ".exe" {
+			linkPath += ".exe"
+		}
+
+		// 检查链接是否存在
+		if _, err := os.Lstat(linkPath); os.IsNotExist(err) {
+			continue
+		}
+
+		// 删除符号链接
+		if err := os.Remove(linkPath); err != nil {
+			fmt.Printf("    ⚠️  无法删除链接 %s: %v\n", cmdName, err)
+			continue
+		}
+
+		fmt.Printf("    ✅ 已删除 %s\n", cmdName)
+	}
+
+	return nil
+}
+
+// loadPackageManifest 从已安装的包中加载 manifest
+func (i *Installer) loadPackageManifest(packagePath string) (*types.Manifest, error) {
+	manifestPath := filepath.Join(packagePath, "toolset.json")
+	
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest types.Manifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+
+	return &manifest, nil
 }
 
 // IsInstalled 检查包是否已安装

@@ -38,6 +38,9 @@ type Manifest struct {
 	// 分发信息
 	Dist Distribution `json:"dist"` // 下载和校验信息
 
+	// 可执行程序配置（可选）
+	Bin map[string]string `json:"bin,omitempty"` // 需要暴露的可执行程序 {"命令名": "相对路径"}
+
 	// 管理器兼容性
 	CursorToolset ManagerCompat `json:"cursortoolset,omitempty"` // 管理器兼容性要求
 

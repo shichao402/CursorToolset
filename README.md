@@ -8,6 +8,16 @@ Cursor 工具集管理器 - 一个简洁的包管理工具，用于管理和安�
 - **安全** - 不执行任何脚本，只做文件分发
 - **透明** - 所有包信息公开可查，SHA256 校验
 
+## ✨ 特性
+
+- 📦 **简单易用** - 类似 npm/pip 的命令行体验
+- 🔒 **安全可靠** - SHA256 校验，不执行任何脚本
+- 🌍 **跨平台** - 支持 Linux、macOS、Windows
+- 🔗 **可执行程序暴露** - 自动创建符号链接，像系统命令一样使用
+- 📚 **Registry 机制** - 中心化的包索引，易于发现和管理
+- 🔄 **依赖管理** - 自动处理包依赖关系
+- 💾 **智能缓存** - 减少重复下载，支持离线使用
+
 ## 快速开始
 
 ### 安装 CursorToolset
@@ -59,6 +69,13 @@ cursortoolset uninstall github-action-toolset
 | `info <name>` | 查看包详情 |
 | `update` | 更新管理器和包 |
 
+### 包开发
+
+| 命令 | 说明 |
+|------|------|
+| `init <name>` | 初始化新的工具集包项目 |
+| `pack [dir]` | 标准化打包工具集包 🆕 |
+
 ### Registry 管理
 
 | 命令 | 说明 |
@@ -99,9 +116,10 @@ cursortoolset uninstall github-action-toolset
 
 ## 开发包
 
-### 初始化包项目
+### 1. 初始化包项目
 
 ```bash
+# 初始化新包
 cursortoolset init my-toolset
 cd my-toolset
 ```
@@ -115,6 +133,42 @@ my-toolset/
 ├── README.md
 └── .gitignore
 ```
+
+### 2. 开发你的工具集
+
+```bash
+# 创建规则文件
+mkdir -p rules
+echo "# My Rules" > rules/my-rules.md
+
+# 添加可执行程序（可选）
+mkdir -p bin
+echo "#!/bin/bash" > bin/mytool
+chmod +x bin/mytool
+```
+
+### 3. 标准化打包 🆕
+
+```bash
+# 验证配置并打包
+cursortoolset pack --verify
+
+# 生成：my-toolset-1.0.0.tar.gz
+# 自动计算并更新 SHA256
+```
+
+### 4. 发布
+
+```bash
+# 创建 GitHub Release
+git tag v1.0.0
+git push origin v1.0.0
+
+# 在 GitHub 上创建 Release 并上传 tar.gz
+# 更新 toolset.json 中的 dist.tarball 地址
+```
+
+详见：[标准化打包文档](docs/PACK_FEATURE.md) 📚
 
 ### toolset.json 规范
 
@@ -133,6 +187,11 @@ my-toolset/
     "url": "https://github.com/user/my-toolset.git"
   },
   
+  "bin": {
+    "mytool": "bin/mytool",
+    "mytool-helper": "scripts/helper.sh"
+  },
+  
   "dist": {
     "tarball": "https://github.com/user/my-toolset/releases/download/v1.0.0/my-toolset-1.0.0.tar.gz",
     "sha256": "abc123..."
@@ -143,6 +202,33 @@ my-toolset/
   }
 }
 ```
+
+#### 可执行程序配置 (bin)
+
+通过 `bin` 字段可以暴露包中的可执行程序，安装时会自动创建符号链接：
+
+```json
+{
+  "bin": {
+    "command-name": "path/to/executable"
+  }
+}
+```
+
+安装后：
+1. 符号链接会创建到 `~/.cursortoolsets/bin/`
+2. 用户将该目录添加到 PATH 后即可直接使用命令
+
+```bash
+# 添加到 PATH（一次性配置）
+export PATH="$HOME/.cursortoolsets/bin:$PATH"
+
+# 直接使用命令
+mytool --help
+mytool-helper process
+```
+
+详见 [Bin 功能文档](docs/BIN_FEATURE.md)
 
 ### 发布包
 
@@ -211,12 +297,21 @@ go build -o cursortoolset .
 
 ## 📚 文档
 
-- **[使用示例](USAGE_EXAMPLE.md)** - 完整的使用示例和最佳实践 ⭐
-- [安装指南](INSTALL_GUIDE.md) - 详细的安装步骤
-- [包开发指南](PACKAGE_DEV.md) - 创建和发布工具集包
-- [构建指南](BUILD_GUIDE.md) - 从源码构建
-- [架构设计](ARCHITECTURE.md) - 系统架构和设计理念
-- [测试指南](TESTING.md) - 运行和编写测试
+### 用户文档
+- **[使用示例](docs/USAGE_EXAMPLE.md)** - 完整的使用示例和最佳实践 ⭐
+- [安装指南](docs/INSTALL_GUIDE.md) - 详细的安装步骤
+
+### 包开发文档
+- [包开发指南](docs/PACKAGE_DEV.md) - 创建和发布工具集包
+- **[标准化打包文档](docs/PACK_FEATURE.md)** - 打包、发布流程 🆕
+- **[Bin 功能文档](docs/BIN_FEATURE.md)** - 可执行程序暴露功能 🆕
+- [配置示例](docs/examples/README.md) - 各种配置示例
+
+### 开发者文档
+- [构建指南](docs/BUILD_GUIDE.md) - 从源码构建
+- [架构设计](docs/ARCHITECTURE.md) - 系统架构和设计理念
+- [测试指南](docs/TESTING.md) - 运行和编写测试
+- [开发规则](.cursor/rules/cursortoolset-development.md) - 项目开发规范
 
 ## 许可证
 
