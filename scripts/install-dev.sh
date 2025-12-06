@@ -98,7 +98,8 @@ esac
 PLATFORM="${OS}-${ARCH}"
 print_info "目标平台: ${PLATFORM}"
 
-if go build -ldflags "${LDFLAGS}" -o cursortoolset .; then
+mkdir -p dist
+if go build -ldflags "${LDFLAGS}" -o dist/cursortoolset .; then
     print_success "构建成功"
 else
     print_error "构建失败"
@@ -117,7 +118,7 @@ if [ -f "${BINARY_PATH}" ]; then
 fi
 
 # 复制新版本
-cp cursortoolset "${BINARY_PATH}"
+cp dist/cursortoolset "${BINARY_PATH}"
 chmod +x "${BINARY_PATH}"
 print_success "安装完成"
 
@@ -154,7 +155,7 @@ else
 fi
 
 # Step 7: 清理构建产物
-rm -f cursortoolset
+rm -f dist/cursortoolset
 print_info "已清理本地构建产物"
 
 # Step 8: 验证安装

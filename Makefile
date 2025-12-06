@@ -30,11 +30,12 @@ build: .root
 		echo "❌ 错误: version.json 文件不存在"; \
 		exit 1; \
 	fi
+	@mkdir -p dist
 	@echo "🔨 构建 $(BINARY_NAME)..."
 	@echo "📌 版本: $(VERSION)"
 	@echo "🔧 使用开发根目录: $(CURSOR_TOOLSET_ROOT)"
-	go build $(LDFLAGS) -o $(BINARY_NAME) .
-	@echo "✅ 构建完成: $(BINARY_NAME)"
+	go build $(LDFLAGS) -o dist/$(BINARY_NAME) .
+	@echo "✅ 构建完成: dist/$(BINARY_NAME)"
 
 # 构建所有平台版本
 .PHONY: build-all
