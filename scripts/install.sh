@@ -215,6 +215,19 @@ main() {
         print_warning "系统配置下载失败，将使用内置默认值"
     fi
     
+    # 下载包开发指南
+    print_info "下载包开发指南..."
+    DOCS_DIR="${INSTALL_DIR}/docs"
+    mkdir -p "${DOCS_DIR}"
+    PACKAGE_GUIDE_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/docs/public/package-dev-guide.md"
+    PACKAGE_GUIDE_PATH="${DOCS_DIR}/package-dev-guide.md"
+    
+    if curl -fsSL -o "${PACKAGE_GUIDE_PATH}" "${PACKAGE_GUIDE_URL}"; then
+        print_success "包开发指南下载成功"
+    else
+        print_warning "包开发指南下载失败"
+    fi
+    
     # 添加到 PATH
     print_info "配置环境变量..."
     

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/firoyang/CursorToolset/pkg/config"
+	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -282,13 +283,47 @@ MIT
 // createCursorToolsetDir 创建 .cursortoolset 目录
 func createCursorToolsetDir(targetDir, packageName string) error {
 	cursorDir := filepath.Join(targetDir, ".cursortoolset")
-	rulesDir := filepath.Join(cursorDir, "rules")
+	docsDir := filepath.Join(cursorDir, "docs")
 
-	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+	if err := os.MkdirAll(docsDir, 0755); err != nil {
 		return err
 	}
 
-	// 创建开发指南规则
+	// 尝试从安装目录复制包开发指南
+	if err := copyPackageDevGuide(docsDir); err != nil {
+		// 如果复制失败，生成一个简单的开发指南
+		fmt.Printf("  ⚠️  无法复制包开发指南: %v\n", err)
+		if err := createFallbackDevGuide(docsDir, packageName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copyPackageDevGuide 从安装目录复制包开发指南
+func copyPackageDevGuide(destDir string) error {
+	// 获取安装目录的 docs 路径
+	rootDir, err := paths.GetRootDir()
+	if err != nil {
+		return err
+	}
+
+	srcPath := filepath.Join(rootDir, "docs", "package-dev-guide.md")
+	destPath := filepath.Join(destDir, "package-dev-guide.md")
+
+	// 读取源文件
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return fmt.Errorf("读取包开发指南失败: %w", err)
+	}
+
+	// 写入目标文件
+	return os.WriteFile(destPath, data, 0644)
+}
+
+// createFallbackDevGuide 创建备用开发指南
+func createFallbackDevGuide(destDir, packageName string) error {
 	devGuide := fmt.Sprintf(`# %s 开发指南
 
 ## 包结构规范
@@ -308,16 +343,15 @@ func createCursorToolsetDir(targetDir, packageName string) error {
 3. **发布流程**：
    - 更新 toolset.json 中的 version
    - 创建 Git Tag (v1.0.0)
-   - 打包: tar -czvf %s-VERSION.tar.gz *
-   - 计算 SHA256 并更新 toolset.json
+   - 打包: cursortoolset pack
    - 在 GitHub Release 发布
 
-## AI 规则编写指南
+## 更多信息
 
-在 rules/ 目录下创建 .md 文件作为 AI 规则。
-`, toDisplayName(packageName), packageName)
+运行 cursortoolset update 更新管理器以获取完整的包开发指南。
+`, toDisplayName(packageName))
 
-	return os.WriteFile(filepath.Join(rulesDir, "dev-guide.md"), []byte(devGuide), 0644)
+	return os.WriteFile(filepath.Join(destDir, "package-dev-guide.md"), []byte(devGuide), 0644)
 }
 
 // createGitignore 创建 .gitignore

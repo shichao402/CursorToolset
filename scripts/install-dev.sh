@@ -133,11 +133,23 @@ else
     print_warning "未找到 config/system.json，将使用内置默认值"
 fi
 
-# Step 6: 清理构建产物
+# Step 6: 复制包开发指南
+print_step "安装包开发指南..."
+DOCS_DIR="${INSTALL_DIR}/docs"
+mkdir -p "${DOCS_DIR}"
+
+if [ -f "${PROJECT_DIR}/docs/public/package-dev-guide.md" ]; then
+    cp "${PROJECT_DIR}/docs/public/package-dev-guide.md" "${DOCS_DIR}/package-dev-guide.md"
+    print_success "包开发指南已安装"
+else
+    print_warning "未找到 docs/public/package-dev-guide.md"
+fi
+
+# Step 7: 清理构建产物
 rm -f cursortoolset
 print_info "已清理本地构建产物"
 
-# Step 7: 验证安装
+# Step 8: 验证安装
 print_step "验证安装..."
 INSTALLED_VERSION=$("${BINARY_PATH}" --version 2>&1 || echo "unknown")
 print_success "安装版本: ${INSTALLED_VERSION}"
