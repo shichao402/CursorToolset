@@ -1,0 +1,50 @@
+# Binaries
+cursortoolset
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cursor 相关（安装后生成的内容）
+.cursor/
+
+# 开发根目录（开发时使用）
+.root/
+
+# 构建产物
+dist/
+logs/
+*.log
+
+# 测试环境
+.test-install/
+
+# 临时文档
+docs/temp/*
+!docs/temp/.gitkeep
+
+
