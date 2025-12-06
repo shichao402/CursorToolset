@@ -14,6 +14,7 @@ import (
 var (
 	initDir    string
 	initAuthor string
+	initForce  bool
 )
 
 var initCmd = &cobra.Command{
@@ -48,22 +49,34 @@ var initCmd = &cobra.Command{
 		}
 
 		// 检查目录是否已存在
+		existingProject := false
 		if _, err := os.Stat(targetDir); err == nil {
 			// 检查是否已经初始化
 			if _, err := os.Stat(filepath.Join(targetDir, "toolset.json")); err == nil {
-				return fmt.Errorf("目录 %s 已经是一个工具集包项目", targetDir)
+				if !initForce {
+					return fmt.Errorf("目录 %s 已经是一个工具集包项目\n\n提示: 使用 --force 强制重新初始化", targetDir)
+				}
+				existingProject = true
 			}
 		}
 
-		fmt.Printf("📦 初始化工具集包: %s\n", packageName)
+		if existingProject {
+			fmt.Printf("🔄 重新初始化工具集包: %s\n", packageName)
+		} else {
+			fmt.Printf("📦 初始化工具集包: %s\n", packageName)
+		}
 		fmt.Printf("   目录: %s\n\n", targetDir)
 
-		// 创建目录结构
-		if err := createPackageStructure(targetDir, packageName); err != nil {
+		// 创建/更新目录结构
+		if err := createPackageStructure(targetDir, packageName, existingProject); err != nil {
 			return fmt.Errorf("创建目录结构失败: %w", err)
 		}
 
-		fmt.Println("\n✅ 工具集包初始化完成！")
+		if existingProject {
+			fmt.Println("\n✅ 工具集包重新初始化完成！")
+		} else {
+			fmt.Println("\n✅ 工具集包初始化完成！")
+		}
 		fmt.Println("\n📝 下一步：")
 		fmt.Printf("   1. 编辑 %s/toolset.json 完善包信息\n", targetDir)
 		fmt.Printf("   2. 在 %s 目录下开发你的工具集\n", targetDir)
@@ -77,6 +90,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVarP(&initDir, "dir", "d", "", "目标目录（默认使用包名作为目录名）")
 	initCmd.Flags().StringVarP(&initAuthor, "author", "a", "", "作者名称")
+	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "强制重新初始化已有项目")
 	RootCmd.AddCommand(initCmd)
 }
 
@@ -102,41 +116,72 @@ func validatePackageName(name string) error {
 }
 
 // createPackageStructure 创建包目录结构
-func createPackageStructure(targetDir, packageName string) error {
+func createPackageStructure(targetDir, packageName string, isReinit bool) error {
 	// 创建主目录
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
 
-	// 创建 toolset.json
-	if err := createToolsetJSON(targetDir, packageName); err != nil {
+	// 创建/更新 toolset.json
+	if err := createToolsetJSON(targetDir, packageName, isReinit); err != nil {
 		return fmt.Errorf("创建 toolset.json 失败: %w", err)
 	}
-	fmt.Println("  ✅ 创建 toolset.json")
-
-	// 创建 README.md
-	if err := createReadme(targetDir, packageName); err != nil {
-		return fmt.Errorf("创建 README.md 失败: %w", err)
+	if isReinit {
+		fmt.Println("  ✅ 更新 toolset.json")
+	} else {
+		fmt.Println("  ✅ 创建 toolset.json")
 	}
-	fmt.Println("  ✅ 创建 README.md")
 
-	// 创建 .cursortoolset 目录和规则文件
-	if err := createCursorToolsetDir(targetDir, packageName); err != nil {
-		return fmt.Errorf("创建 .cursortoolset 目录失败: %w", err)
+	// 创建 README.md（仅新项目或不存在时）
+	readmePath := filepath.Join(targetDir, "README.md")
+	if _, err := os.Stat(readmePath); os.IsNotExist(err) {
+		if err := createReadme(targetDir, packageName); err != nil {
+			return fmt.Errorf("创建 README.md 失败: %w", err)
+		}
+		fmt.Println("  ✅ 创建 README.md")
+	} else if isReinit {
+		fmt.Println("  ⏭️  跳过 README.md（已存在）")
 	}
-	fmt.Println("  ✅ 创建 .cursortoolset/ 规则目录")
 
-	// 创建 .gitignore
-	if err := createGitignore(targetDir); err != nil {
-		return fmt.Errorf("创建 .gitignore 失败: %w", err)
+	// 创建 .cursortoolset 目录和规则文件（仅新项目或不存在时）
+	cursorDir := filepath.Join(targetDir, ".cursortoolset")
+	if _, err := os.Stat(cursorDir); os.IsNotExist(err) {
+		if err := createCursorToolsetDir(targetDir, packageName); err != nil {
+			return fmt.Errorf("创建 .cursortoolset 目录失败: %w", err)
+		}
+		fmt.Println("  ✅ 创建 .cursortoolset/ 规则目录")
+	} else if isReinit {
+		fmt.Println("  ⏭️  跳过 .cursortoolset/（已存在）")
 	}
-	fmt.Println("  ✅ 创建 .gitignore")
+
+	// 创建 .gitignore（仅新项目或不存在时）
+	gitignorePath := filepath.Join(targetDir, ".gitignore")
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		if err := createGitignore(targetDir); err != nil {
+			return fmt.Errorf("创建 .gitignore 失败: %w", err)
+		}
+		fmt.Println("  ✅ 创建 .gitignore")
+	} else if isReinit {
+		fmt.Println("  ⏭️  跳过 .gitignore（已存在）")
+	}
 
 	return nil
 }
 
-// createToolsetJSON 创建 toolset.json
-func createToolsetJSON(targetDir, packageName string) error {
+// createToolsetJSON 创建或更新 toolset.json
+func createToolsetJSON(targetDir, packageName string, isReinit bool) error {
+	manifestPath := filepath.Join(targetDir, "toolset.json")
+
+	// 如果是重新初始化，读取现有配置并合并
+	var existingData map[string]interface{}
+	if isReinit {
+		data, err := os.ReadFile(manifestPath)
+		if err == nil {
+			json.Unmarshal(data, &existingData)
+		}
+	}
+
+	// 构建新的 manifest
 	manifest := map[string]interface{}{
 		"name":        packageName,
 		"displayName": toDisplayName(packageName),
@@ -158,12 +203,30 @@ func createToolsetJSON(targetDir, packageName string) error {
 		},
 	}
 
+	// 如果是重新初始化，保留用户自定义的值
+	if isReinit && existingData != nil {
+		// 保留用户设置的字段
+		preserveFields := []string{"version", "description", "author", "license", "keywords", "repository", "dist", "bin", "build", "release", "dependencies"}
+		for _, field := range preserveFields {
+			if val, ok := existingData[field]; ok {
+				manifest[field] = val
+			}
+		}
+		// 确保 name 和 displayName 使用新值（如果包名改变）
+		manifest["name"] = packageName
+		if existingData["displayName"] == nil || existingData["displayName"] == "" {
+			manifest["displayName"] = toDisplayName(packageName)
+		} else {
+			manifest["displayName"] = existingData["displayName"]
+		}
+	}
+
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "toolset.json"), data, 0644)
+	return os.WriteFile(manifestPath, data, 0644)
 }
 
 // createReadme 创建 README.md

@@ -39,13 +39,36 @@ type Manifest struct {
 	Dist Distribution `json:"dist"` // 下载和校验信息
 
 	// 可执行程序配置（可选）
-	Bin map[string]string `json:"bin,omitempty"` // 需要暴露的可执行程序 {"命令名": "相对路径"}
+	// 支持两种格式：
+	// 1. 简单格式: {"cmd": "path/to/binary"}
+	// 2. 多平台格式: {"cmd": {"darwin-arm64": "path/to/binary-darwin-arm64", ...}}
+	Bin map[string]interface{} `json:"bin,omitempty"` // 需要暴露的可执行程序
+
+	// 构建配置（可选）
+	Build *BuildConfig `json:"build,omitempty"` // 构建配置
+
+	// 发布配置（可选）
+	Release *ReleaseConfig `json:"release,omitempty"` // 发布配置
 
 	// 管理器兼容性
 	CursorToolset ManagerCompat `json:"cursortoolset,omitempty"` // 管理器兼容性要求
 
 	// 依赖（可选）
 	Dependencies []string `json:"dependencies,omitempty"` // 依赖的包名列表
+}
+
+// BuildConfig 表示构建配置
+type BuildConfig struct {
+	Type      string   `json:"type,omitempty"`      // 构建类型: go, rust, node 等
+	Entry     string   `json:"entry,omitempty"`     // 入口文件
+	Output    string   `json:"output,omitempty"`    // 输出路径
+	Platforms []string `json:"platforms,omitempty"` // 目标平台列表
+}
+
+// ReleaseConfig 表示发布配置
+type ReleaseConfig struct {
+	Exclude []string `json:"exclude,omitempty"` // 打包时排除的文件
+	GitHub  bool     `json:"github,omitempty"`  // 是否发布到 GitHub Release
 }
 
 // Distribution 表示包的分发信息

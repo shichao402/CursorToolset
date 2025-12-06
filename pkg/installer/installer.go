@@ -152,10 +152,20 @@ func (i *Installer) linkBinaries(manifest *types.Manifest, packagePath string) e
 
 	fmt.Printf("  🔗 创建可执行程序链接...\n")
 
-	for cmdName, relPath := range manifest.Bin {
+	// 当前平台
+	currentPlatform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+
+	for cmdName, binConfig := range manifest.Bin {
+		// 解析 bin 配置，支持两种格式
+		relPath, err := i.resolveBinPath(binConfig, currentPlatform)
+		if err != nil {
+			fmt.Printf("    ⚠️  跳过 %s: %v\n", cmdName, err)
+			continue
+		}
+
 		// 源文件（包中的可执行程序）
 		srcPath := filepath.Join(packagePath, relPath)
-		
+
 		// 检查源文件是否存在
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
 			fmt.Printf("    ⚠️  跳过 %s: 文件不存在 (%s)\n", cmdName, relPath)
@@ -210,6 +220,33 @@ func (i *Installer) linkBinaries(manifest *types.Manifest, packagePath string) e
 	fmt.Println()
 
 	return nil
+}
+
+// resolveBinPath 解析 bin 配置，返回当前平台对应的路径
+// 支持两种格式：
+// 1. 简单格式（字符串）: "path/to/binary"
+// 2. 多平台格式（对象）: {"darwin-arm64": "path/to/binary-darwin-arm64", ...}
+func (i *Installer) resolveBinPath(binConfig interface{}, currentPlatform string) (string, error) {
+	switch v := binConfig.(type) {
+	case string:
+		// 简单格式：直接返回路径
+		return v, nil
+	case map[string]interface{}:
+		// 多平台格式：查找当前平台
+		if path, ok := v[currentPlatform]; ok {
+			if pathStr, ok := path.(string); ok {
+				return pathStr, nil
+			}
+		}
+		// 列出支持的平台
+		var supported []string
+		for platform := range v {
+			supported = append(supported, platform)
+		}
+		return "", fmt.Errorf("当前平台 %s 不支持，支持的平台: %v", currentPlatform, supported)
+	default:
+		return "", fmt.Errorf("无效的 bin 配置格式")
+	}
 }
 
 // unlinkBinaries 清理包中配置的可执行程序的符号链接
