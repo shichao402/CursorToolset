@@ -19,11 +19,35 @@
 
 ## 测试类型
 
-| 类型 | 命令 | 说明 |
-|------|------|------|
+| 类型 | 命令/触发 | 说明 |
+|------|-----------|------|
 | 单元测试 | `make test` | Go 单元测试 |
 | 功能测试 | `./scripts/run-tests.sh` | 完整功能验证 |
+| 定时测试 | GitHub Actions (每天 8:00 北京时间) | 自动化回归测试 |
 | 手动测试 | 见下文 | 按步骤手动验证 |
+
+## CI 定时测试
+
+### 触发条件
+
+- **定时触发**: 北京时间每天早上 8:00 (UTC 0:00)
+- **变更检查**: 仅当 main 分支在过去 24 小时有新提交时运行
+- **手动触发**: 支持在 GitHub Actions 页面手动运行
+
+### 测试内容
+
+| 测试项 | 说明 |
+|--------|------|
+| 单元测试 | `go test ./... -v -cover` |
+| 代码检查 | golangci-lint |
+| 功能测试 | `./scripts/run-tests.sh` |
+| 跨平台构建 | linux/darwin/windows × amd64/arm64 |
+
+### 手动触发
+
+1. 访问 [GitHub Actions](https://github.com/shichao402/CursorToolset/actions/workflows/scheduled-test.yml)
+2. 点击 "Run workflow"
+3. 可选择 "跳过变更检查" 强制运行
 
 ## 测试环境
 
