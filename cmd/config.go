@@ -78,7 +78,7 @@ var configResetCmd = &cobra.Command{
 				fmt.Printf("❌ 重置失败: %v\n", err)
 				return
 			}
-			fmt.Printf("✅ registry_url 已重置为默认值: %s\n", config.DefaultRegistryURL)
+			fmt.Printf("✅ registry_url 已重置为默认值: %s\n", config.GetDefaultRegistryURL())
 		default:
 			fmt.Printf("❌ 未知配置项: %s\n", key)
 			fmt.Println("支持的配置项: registry_url")

@@ -135,19 +135,22 @@ main() {
     CONFIG_DIR="${INSTALL_DIR}/config"
     REPOS_DIR="${INSTALL_DIR}/repos"
     BINARY_PATH="${BIN_DIR}/cursortoolset"
-    CONFIG_PATH="${CONFIG_DIR}/available-toolsets.json"
+    
+    # 更新分支（正式版使用 ReleaseLatest，测试版使用 ReleaseTest）
+    UPDATE_BRANCH="${CURSOR_TOOLSET_BRANCH:-ReleaseLatest}"
     
     print_info "安装目录: ${INSTALL_DIR}"
+    print_info "更新分支: ${UPDATE_BRANCH}"
     if [ -n "${CURSOR_TOOLSET_HOME}" ]; then
         print_info "使用环境变量 CURSOR_TOOLSET_HOME: ${CURSOR_TOOLSET_HOME}"
     fi
     
-    # 从 ReleaseLatest 分支获取版本号（唯一来源）
+    # 从更新分支获取版本号
     print_info "获取最新版本号..."
-    VERSION_JSON=$(curl -fsSL "https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/version.json" 2>/dev/null)
+    VERSION_JSON=$(curl -fsSL "https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/version.json" 2>/dev/null)
     
     if [ -z "${VERSION_JSON}" ]; then
-        print_error "无法从 ReleaseLatest 分支获取版本信息"
+        print_error "无法从 ${UPDATE_BRANCH} 分支获取版本信息"
         print_error "请检查网络连接或稍后重试"
         exit 1
     fi
@@ -200,6 +203,17 @@ main() {
     
     chmod +x "${BINARY_PATH}"
     print_success "预编译版本下载成功"
+    
+    # 下载系统配置文件
+    print_info "下载系统配置..."
+    SYSTEM_CONFIG_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/config/system.json"
+    SYSTEM_CONFIG_PATH="${CONFIG_DIR}/system.json"
+    
+    if curl -fsSL -o "${SYSTEM_CONFIG_PATH}" "${SYSTEM_CONFIG_URL}"; then
+        print_success "系统配置下载成功"
+    else
+        print_warning "系统配置下载失败，将使用内置默认值"
+    fi
     
     # 添加到 PATH
     print_info "配置环境变量..."

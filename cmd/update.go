@@ -148,9 +148,13 @@ func updateSelfBinary() error {
 
 	fmt.Printf("  📥 克隆最新代码...\n")
 
+	// 从正式发布分支获取最新代码
+	branch := config.GetUpdateBranch()
+	fmt.Printf("  📡 更新分支: %s\n", branch)
+
 	// 克隆最新代码
-	cmd := exec.Command("git", "clone", "--depth", "1",
-		config.RepoGitURL, tempDir)
+	cmd := exec.Command("git", "clone", "--depth", "1", "--branch", branch,
+		config.GetRepoGitURL(), tempDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

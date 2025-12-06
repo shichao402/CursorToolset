@@ -119,6 +119,27 @@ install: build
 	echo ""; \
 	echo "💡 请确保 $$INSTALL_DIR/bin 在您的 PATH 中"
 
+# 本地开发安装（覆盖系统安装的 cursortoolset）
+.PHONY: install-local
+install-local: build
+	@echo "📦 本地开发安装..."
+	@./scripts/install-dev.sh
+	@echo "✅ 本地开发安装完成"
+
+# 快速本地安装（跳过测试）
+.PHONY: install-dev
+install-dev:
+	@echo "📦 快速开发安装..."
+	@./scripts/install-dev.sh
+	@echo "✅ 快速开发安装完成"
+
+# 本地安装并运行测试
+.PHONY: install-dev-test
+install-dev-test:
+	@echo "📦 开发安装（含测试）..."
+	@./scripts/install-dev.sh --test
+	@echo "✅ 开发安装完成"
+
 # 格式化代码
 .PHONY: fmt
 fmt: .root
@@ -143,14 +164,30 @@ lint: .root
 help:
 	@echo "CursorToolset Makefile"
 	@echo ""
-	@echo "可用目标："
-	@echo "  make build      - 构建当前平台版本"
-	@echo "  make build-all  - 构建所有平台版本"
-	@echo "  make test       - 运行单元测试"
-	@echo "  make test-all   - 运行所有测试"
-	@echo "  make clean      - 清理构建产物"
-	@echo "  make install    - 安装到本地"
-	@echo "  make fmt        - 格式化代码"
-	@echo "  make lint       - 代码检查"
+	@echo "构建目标："
+	@echo "  make build          - 构建当前平台版本"
+	@echo "  make build-all      - 构建所有平台版本"
+	@echo ""
+	@echo "测试目标："
+	@echo "  make test           - 运行单元测试"
+	@echo "  make test-all       - 运行所有测试"
+	@echo ""
+	@echo "安装目标："
+	@echo "  make install        - 安装到开发目录"
+	@echo "  make install-dev    - 快速开发安装（覆盖系统安装）"
+	@echo "  make install-dev-test - 开发安装（含测试）"
+	@echo ""
+	@echo "其他目标："
+	@echo "  make clean          - 清理构建产物"
+	@echo "  make clean-root     - 清理开发根目录"
+	@echo "  make fmt            - 格式化代码"
+	@echo "  make lint           - 代码检查"
+	@echo ""
+	@echo "开发流程："
+	@echo "  1. make build       - 本地构建检查"
+	@echo "  2. make test        - 运行测试"
+	@echo "  3. make install-dev - 本地安装验证"
+	@echo "  4. 提交代码到 build 分支"
+	@echo "  5. CI/CD 构建发布"
 	@echo ""
 

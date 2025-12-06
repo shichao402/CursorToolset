@@ -81,7 +81,7 @@ var initCmd = &cobra.Command{
 		fmt.Printf("   1. 编辑 %s/toolset.json 完善包信息\n", targetDir)
 		fmt.Printf("   2. 在 %s 目录下开发你的工具集\n", targetDir)
 		fmt.Println("   3. 创建 GitHub Release 发布你的包")
-		fmt.Printf("\n📚 参考文档：%s#package-development\n", config.RepoURL)
+		fmt.Printf("\n📚 参考文档：%s#package-development\n", config.GetRepoURL())
 
 		return nil
 	},

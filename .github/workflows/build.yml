@@ -1,269 +1,234 @@
-name: Build Pipeline
+# CursorToolset CI/CD 流水线
+# 触发条件：推送 test-v* tag 或手动触发
+# 功能：构建、测试、发布到 test 渠道
 
-# 触发条件：build 分支被创建或推送
+name: Build and Test
+
 on:
   push:
-    branches:
-      - 'build'
-      - 'build-*'
+    tags:
+      - 'test-v*'
   workflow_dispatch:
     inputs:
       version:
-        description: '构建版本号（如 v1.0.1）'
+        description: '版本号 (留空则从 version.json 读取)'
         required: false
-        default: 'dev'
+        type: string
+  pull_request:
+    branches:
+      - main
 
-permissions:
-  contents: write
+env:
+  GO_VERSION: '1.21'
 
 jobs:
-  # 构建信息
-  build-info:
-    name: 准备构建信息
+  # 代码检查和测试
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      build_time: ${{ steps.version.outputs.build_time }}
-      branch: ${{ steps.version.outputs.branch }}
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: 读取版本信息
-        id: version
-        run: |
-          # 从 version.json 读取版本号
-          if [ ! -f "version.json" ]; then
-            echo "❌ 错误: version.json 文件不存在"
-            exit 1
-          fi
-          
-          VERSION=$(cat version.json | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
-          if [ -z "$VERSION" ]; then
-            echo "❌ 错误: version.json 中未找到 version 字段"
-            exit 1
-          fi
-          
-          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
-          COMMIT=$(git rev-parse --short HEAD)
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          
-          # 更新 version.json 中的构建信息
-          cat > version.json << EOF
-          {
-            "version": "$VERSION",
-            "build_time": "$BUILD_TIME",
-            "commit": "$COMMIT",
-            "branch": "$BRANCH"
-          }
-          EOF
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
-          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-          
-          echo "📦 构建版本: $VERSION"
-          echo "⏰ 构建时间: $BUILD_TIME"
-          echo "🔖 提交哈希: $COMMIT"
-          echo "🌿 构建分支: $BRANCH"
 
-  # 多平台构建
-  build:
-    name: 构建 ${{ matrix.os }}-${{ matrix.arch }}
-    needs: build-info
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          # Linux
-          - os: linux
-            arch: amd64
-            runner: ubuntu-latest
-          - os: linux
-            arch: arm64
-            runner: ubuntu-latest
-          # macOS
-          - os: darwin
-            arch: amd64
-            runner: macos-latest
-          - os: darwin
-            arch: arm64
-            runner: macos-latest
-          # Windows
-          - os: windows
-            arch: amd64
-            runner: windows-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-          cache: true
-      
-      - name: 使用构建脚本构建
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          VERSION: ${{ needs.build-info.outputs.version }}
-          BUILD_TIME: ${{ needs.build-info.outputs.build_time }}
-          OUTPUT_DIR: dist
-          LOG_DIR: logs
-        run: |
-          # 确保构建脚本有执行权限
-          chmod +x build.sh
-          
-          # 直接调用构建脚本，它会自动检测 GOOS 和 GOARCH 环境变量
-          # 并构建指定的平台版本
-          ./build.sh --no-clean
-        shell: bash
-      
-      - name: 测试可执行文件
-        run: |
-          # 构建脚本已经生成了正确的文件名
-          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-          
-          echo "🧪 测试可执行文件..."
-          
-          # 检查架构是否匹配（避免跨架构执行错误）
-          RUNNER_ARCH=$(uname -m)
-          TARGET_ARCH="${{ matrix.arch }}"
-          
-          # 架构映射
-          case "$RUNNER_ARCH" in
-            x86_64)
-              RUNNER_ARCH_NORM="amd64"
-              ;;
-            aarch64|arm64)
-              RUNNER_ARCH_NORM="arm64"
-              ;;
-            *)
-              RUNNER_ARCH_NORM="$RUNNER_ARCH"
-              ;;
-          esac
-          
-          if [ "$RUNNER_ARCH_NORM" = "$TARGET_ARCH" ]; then
-            chmod +x "dist/$BINARY_NAME" || true
-            ./"dist/$BINARY_NAME" --version
-            echo "✅ 可执行文件测试通过"
-          else
-            echo "⚠️  跳过跨架构测试（Runner: $RUNNER_ARCH_NORM, Target: $TARGET_ARCH）"
-            echo "✅ 二进制文件已生成，架构验证通过"
-            ls -lh "dist/$BINARY_NAME"
-          fi
-        shell: bash
-      
-      - name: 生成校验和
-        run: |
-          # 构建脚本已经生成了 BUILD_INFO 文件，这里只需要生成校验和
-          BINARY_NAME="cursortoolset-${{ matrix.os }}-${{ matrix.arch }}"
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            BINARY_NAME="${BINARY_NAME}.exe"
-          fi
-          
-          BINARY_PATH="dist/$BINARY_NAME"
-          
-          # 生成校验和
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$BINARY_PATH" > "dist/$BINARY_NAME.sha256"
-          else
-            shasum -a 256 "$BINARY_PATH" > "dist/$BINARY_NAME.sha256"
-          fi
-          
-          echo "📋 校验和:"
-          cat "dist/$BINARY_NAME.sha256"
-          
-          # 构建脚本已经生成了 BUILD_INFO 文件
-          BUILD_INFO="dist/BUILD_INFO-${{ matrix.os }}-${{ matrix.arch }}.txt"
-          if [ -f "$BUILD_INFO" ]; then
-            echo "📄 构建信息文件（由 build.sh 生成）:"
-            cat "$BUILD_INFO"
-          fi
-        shell: bash
-      
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
         with:
-          name: cursortoolset-${{ matrix.os }}-${{ matrix.arch }}
-          path: |
-            dist/cursortoolset-${{ matrix.os }}-${{ matrix.arch }}*
-            dist/BUILD_INFO-${{ matrix.os }}-${{ matrix.arch }}.txt
-          retention-days: 30
-      
-      - name: 上传构建日志
-        uses: actions/upload-artifact@v4
-        if: always()
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test ./... -v -cover
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v4
         with:
-          name: build-logs-${{ matrix.os }}-${{ matrix.arch }}
-          path: logs/
-          retention-days: 7
-  
-  # 构建总结
-  build-summary:
-    name: 构建总结
-    needs: [build-info, build]
+          version: latest
+          args: --timeout=5m
+
+  # 构建所有平台
+  build:
+    name: Build
+    needs: test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get version
+        id: version
+        run: |
+          # 优先从 tag 获取版本，其次从输入，最后从 version.json
+          if [[ "${GITHUB_REF}" == refs/tags/test-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/test-}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(cat version.json | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION}"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          LDFLAGS="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}"
+          
+          OUTPUT_NAME="cursortoolset-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT_NAME="${OUTPUT_NAME}.exe"
+          fi
+          
+          go build -ldflags "${LDFLAGS}" -o "dist/${OUTPUT_NAME}" .
+          echo "Built: dist/${OUTPUT_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cursortoolset-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/cursortoolset-*
+
+  # 发布到 test 渠道
+  release-test:
+    name: Release to Test Channel
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/test-v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
-      - name: 下载所有构建产物
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          # 优先从 tag 获取版本
+          if [[ "${GITHUB_REF}" == refs/tags/test-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/test-}"
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            TAG_NAME="test-${VERSION}"
+          else
+            VERSION=$(cat version.json | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+            TAG_NAME="test-${VERSION}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-      
-      - name: 生成构建总结
-        run: |
-          echo "# 构建总结" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📦 构建信息" >> $GITHUB_STEP_SUMMARY
-          echo "- **版本**: ${{ needs.build-info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **时间**: ${{ needs.build-info.outputs.build_time }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **分支**: ${{ needs.build-info.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🎯 构建产物" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 平台 | 架构 | 大小 | SHA256 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          cd artifacts
-          for dir in */; do
-            cd "$dir"
-            for file in cursortoolset-*; do
-              if [[ ! "$file" =~ \.sha256$ ]]; then
-                SIZE=$(ls -lh "$file" | awk '{print $5}')
-                SHA=$(cat "${file}.sha256" 2>/dev/null | awk '{print substr($1,1,16)"..."}' || echo "N/A")
-                PLATFORM=$(echo "$file" | sed 's/cursortoolset-//' | sed 's/-.*//')
-                ARCH=$(echo "$file" | sed 's/.*-//' | sed 's/\.exe$//')
-                echo "| $PLATFORM | $ARCH | $SIZE | \`$SHA\` |" >> $GITHUB_STEP_SUMMARY
-              fi
-            done
-            cd ..
-          done
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ✅ 构建状态" >> $GITHUB_STEP_SUMMARY
-          echo "所有平台构建成功！" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📥 下载构建产物" >> $GITHUB_STEP_SUMMARY
-          echo "构建产物已上传到 GitHub Actions Artifacts，保留 30 天。" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 下一步" >> $GITHUB_STEP_SUMMARY
-          echo "如需发布，请运行 **Release Pipeline** 工作流，指定此构建的版本号。" >> $GITHUB_STEP_SUMMARY
-      
-      - name: 列出所有构建产物
-        run: |
-          echo "📦 所有构建产物:"
-          find artifacts -type f ! -name "*.sha256" ! -name "BUILD_INFO*.txt" -exec ls -lh {} \;
-          
-          echo ""
-          echo "📄 构建信息文件:"
-          find artifacts -name "BUILD_INFO*.txt" -exec cat {} \;
+          path: dist
+          merge-multiple: true
 
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          for file in cursortoolset-*; do
+            sha256sum "$file" > "${file}.sha256"
+          done
+          cat *.sha256
+
+      - name: Update ReleaseTest branch
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # 创建或更新 ReleaseTest 分支
+          git fetch origin ReleaseTest || true
+          git checkout -B ReleaseTest
+          
+          # 复制必要文件
+          cp version.json version.json.tmp
+          cp scripts/install.sh scripts/install.sh.tmp
+          cp config/system.json config/system.json.tmp
+          
+          # 清理并添加新文件
+          git checkout --orphan ReleaseTest-new
+          mv version.json.tmp version.json
+          mkdir -p scripts
+          mv scripts/install.sh.tmp scripts/install.sh
+          mkdir -p config
+          mv config/system.json.tmp config/system.json
+          
+          git add version.json scripts/install.sh config/system.json
+          git commit -m "Release test version ${{ steps.version.outputs.version }}"
+          
+          # 强制推送到 ReleaseTest 分支
+          git push -f origin HEAD:ReleaseTest
+
+      - name: Create test release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Test Release ${{ steps.version.outputs.version }}"
+          body: |
+            ## 测试版本 ${{ steps.version.outputs.version }}
+            
+            构建时间: ${{ github.event.head_commit.timestamp }}
+            提交: ${{ github.sha }}
+            
+            ⚠️ **这是测试版本，仅用于测试目的**
+            
+            测试通过后，推送正式 tag 发布：
+            ```bash
+            git tag ${{ steps.version.outputs.version }}
+            git push origin ${{ steps.version.outputs.version }}
+            ```
+          prerelease: true
+          files: |
+            dist/cursortoolset-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Test Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tag: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "测试通过后，推送正式 tag: git tag ${{ steps.version.outputs.version }} && git push origin ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/ >> $GITHUB_STEP_SUMMARY
