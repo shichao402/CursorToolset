@@ -168,7 +168,10 @@ func updateSelfBinary() error {
 	// 读取版本号
 	newVer, err := version.GetVersion(tempDir)
 	if err != nil {
+		fmt.Printf("  ⚠️  读取版本号失败: %v，使用 dev\n", err)
 		newVer = "dev"
+	} else {
+		fmt.Printf("  📌 新版本: %s\n", newVer)
 	}
 
 	// 构建时注入版本号
