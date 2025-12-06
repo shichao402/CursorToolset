@@ -3,7 +3,7 @@ name: Release Registry
 on:
   push:
     paths:
-      - 'registry.json'
+      - 'config/registry.json'
     branches:
       - main
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
       - name: Validate registry.json
         run: |
           echo "Validating registry.json..."
-          cat registry.json | jq .
+          cat config/registry.json | jq .
           echo "✅ registry.json is valid JSON"
 
       - name: Create or Update Registry Release
@@ -31,13 +31,13 @@ jobs:
           # 检查 registry release 是否存在
           if gh release view registry &>/dev/null; then
             echo "Updating existing registry release..."
-            gh release upload registry registry.json --clobber
+            gh release upload registry config/registry.json --clobber
           else
             echo "Creating new registry release..."
             gh release create registry \
               --title "Package Registry" \
               --notes "This release contains the package registry for CursorToolset. Do not delete this release." \
-              registry.json
+              config/registry.json
           fi
           echo "✅ Registry released successfully"
 
