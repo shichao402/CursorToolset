@@ -195,12 +195,17 @@ func (m *Manager) getManifestURL(item types.RegistryItem) string {
 		// https://github.com/user/repo -> https://github.com/user/repo/releases/latest/download/package.json
 		repoURL := strings.TrimSuffix(item.Repository, "/")
 		repoURL = strings.TrimSuffix(repoURL, ".git")
-		return repoURL + "/releases/latest/download/package.json"
+		// 添加时间戳参数绕过 CDN 缓存
+		return fmt.Sprintf("%s/releases/latest/download/package.json?t=%d", repoURL, time.Now().Unix())
 	}
 
 	// 向后兼容：使用旧的 manifestUrl
 	//nolint:staticcheck // 向后兼容旧格式
-	return item.ManifestURL
+	if item.ManifestURL != "" {
+		// 添加时间戳参数绕过 CDN 缓存
+		return fmt.Sprintf("%s?t=%d", item.ManifestURL, time.Now().Unix())
+	}
+	return ""
 }
 
 // resolveTarballURL 解析 tarball 的完整 URL
