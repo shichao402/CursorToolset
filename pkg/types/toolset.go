@@ -12,8 +12,10 @@ type Registry struct {
 
 // RegistryItem 表示注册表中的包条目（最小信息）
 type RegistryItem struct {
-	Name        string `json:"name"`        // 包名（唯一标识）
-	ManifestURL string `json:"manifestUrl"` // 包自描述文件地址
+	Name       string `json:"name"`       // 包名（唯一标识）
+	Repository string `json:"repository"` // 仓库地址（如 https://github.com/user/repo）
+	// Deprecated: 使用 Repository 替代，保留用于向后兼容
+	ManifestURL string `json:"manifestUrl,omitempty"` // 旧版：包自描述文件完整地址
 }
 
 // ========================================
@@ -73,9 +75,9 @@ type ReleaseConfig struct {
 
 // Distribution 表示包的分发信息
 type Distribution struct {
-	Tarball string `json:"tarball"`         // 下载地址（tar.gz）
-	SHA256  string `json:"sha256"`          // SHA256 校验和
-	Size    int64  `json:"size,omitempty"`  // 文件大小（字节）
+	Tarball string `json:"tarball"`        // 下载文件名（相对路径）或完整 URL（向后兼容）
+	SHA256  string `json:"sha256"`         // SHA256 校验和
+	Size    int64  `json:"size,omitempty"` // 文件大小（字节）
 }
 
 // Repository 表示仓库信息

@@ -98,39 +98,36 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
+	// dry-run 模式：显示详细预览
+	if releaseDryRun {
+		return runReleaseDryRun(manifest, packageName, newVersion)
+	}
+
 	// Step 1: 更新版本号
 	fmt.Println("📝 Step 1: 更新版本号")
-	if !releaseDryRun {
-		if err := updateVersionInManifest(manifest, manifestPath, currentVersion, newVersion); err != nil {
-			return fmt.Errorf("更新版本号失败: %w", err)
-		}
+	if err := updateVersionInManifest(manifest, manifestPath, currentVersion, newVersion); err != nil {
+		return fmt.Errorf("更新版本号失败: %w", err)
 	}
 	fmt.Printf("   ✅ toolset.json 版本已更新为 %s\n\n", newVersion)
 
 	// Step 2: 打包
 	fmt.Println("📦 Step 2: 打包")
 	outputFile := fmt.Sprintf("%s-%s.tar.gz", packageName, newVersion)
-	if !releaseDryRun {
-		// 直接调用 pack 逻辑
-		packOutput = outputFile
-		packVerify = true
-		if err := runPack(nil, []string{"."}); err != nil {
-			return fmt.Errorf("打包失败: %w", err)
-		}
-	} else {
-		fmt.Printf("   ✅ 将创建 %s\n\n", outputFile)
+	// 直接调用 pack 逻辑
+	packOutput = outputFile
+	packVerify = true
+	if err := runPack(nil, []string{"."}); err != nil {
+		return fmt.Errorf("打包失败: %w", err)
 	}
 
 	// Step 3: Git commit (SHA256 已在 pack --verify 中更新)
 	fmt.Println("📝 Step 3: Git commit")
 	commitMsg := fmt.Sprintf("chore: release v%s", newVersion)
-	if !releaseDryRun {
-		if err := gitAdd("toolset.json"); err != nil {
-			return fmt.Errorf("git add 失败: %w", err)
-		}
-		if err := gitCommit(commitMsg); err != nil {
-			return fmt.Errorf("git commit 失败: %w", err)
-		}
+	if err := gitAdd("toolset.json"); err != nil {
+		return fmt.Errorf("git add 失败: %w", err)
+	}
+	if err := gitCommit(commitMsg); err != nil {
+		return fmt.Errorf("git commit 失败: %w", err)
 	}
 	fmt.Printf("   ✅ 已提交: %s\n\n", commitMsg)
 
@@ -138,29 +135,23 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	if !releaseSkipTag {
 		fmt.Println("🏷️  Step 4: Git tag")
 		tagName := fmt.Sprintf("v%s", newVersion)
-		if !releaseDryRun {
-			if err := gitTag(tagName); err != nil {
-				return fmt.Errorf("git tag 失败: %w", err)
-			}
+		if err := gitTag(tagName); err != nil {
+			return fmt.Errorf("git tag 失败: %w", err)
 		}
 		fmt.Printf("   ✅ 已创建标签: %s\n\n", tagName)
 
 		// Step 5: Git push
 		fmt.Println("🚀 Step 5: Git push")
-		if !releaseDryRun {
-			if err := gitPush(); err != nil {
-				fmt.Printf("   ⚠️  推送失败: %v\n", err)
-				fmt.Println("   💡 请手动执行: git push && git push --tags")
-			} else {
-				if err := gitPushTags(); err != nil {
-					fmt.Printf("   ⚠️  推送标签失败: %v\n", err)
-					fmt.Println("   💡 请手动执行: git push --tags")
-				} else {
-					fmt.Println("   ✅ 已推送到远程仓库")
-				}
-			}
+		if err := gitPush(); err != nil {
+			fmt.Printf("   ⚠️  推送失败: %v\n", err)
+			fmt.Println("   💡 请手动执行: git push && git push --tags")
 		} else {
-			fmt.Println("   ✅ 将推送到远程仓库")
+			if err := gitPushTags(); err != nil {
+				fmt.Printf("   ⚠️  推送标签失败: %v\n", err)
+				fmt.Println("   💡 请手动执行: git push --tags")
+			} else {
+				fmt.Println("   ✅ 已推送到远程仓库")
+			}
 		}
 		fmt.Println()
 	}
@@ -177,6 +168,136 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// runReleaseDryRun 执行 dry-run 预览
+func runReleaseDryRun(manifest map[string]interface{}, packageName, newVersion string) error {
+	fmt.Println("📋 发布预览")
+	fmt.Println("=" + strings.Repeat("=", 50))
+	fmt.Println()
+
+	// 显示将要包含的文件
+	fmt.Println("📦 将要打包的文件:")
+	includedFiles, excludedFiles := previewPackageFiles()
+	for _, f := range includedFiles {
+		fmt.Printf("   ✅ %s\n", f)
+	}
+	fmt.Println()
+
+	// 显示将要排除的文件
+	if len(excludedFiles) > 0 {
+		fmt.Println("🚫 将要排除的文件/目录:")
+		for _, f := range excludedFiles {
+			fmt.Printf("   ❌ %s\n", f)
+		}
+		fmt.Println()
+	}
+
+	// 检查 bin 配置
+	if bin, ok := manifest["bin"].(map[string]interface{}); ok && len(bin) > 0 {
+		fmt.Println("🔧 可执行文件检查:")
+		allBinOk := true
+		for cmdName, binConfig := range bin {
+			switch v := binConfig.(type) {
+			case map[string]interface{}:
+				// 多平台格式
+				for platform, pathVal := range v {
+					if pathStr, ok := pathVal.(string); ok {
+						if _, err := os.Stat(pathStr); os.IsNotExist(err) {
+							fmt.Printf("   ❌ %s (%s): 文件不存在 - %s\n", cmdName, platform, pathStr)
+							allBinOk = false
+						} else {
+							fmt.Printf("   ✅ %s (%s): %s\n", cmdName, platform, pathStr)
+						}
+					}
+				}
+			case string:
+				// 简单格式
+				if _, err := os.Stat(v); os.IsNotExist(err) {
+					fmt.Printf("   ❌ %s: 文件不存在 - %s\n", cmdName, v)
+					allBinOk = false
+				} else {
+					fmt.Printf("   ✅ %s: %s\n", cmdName, v)
+				}
+			}
+		}
+		if !allBinOk {
+			fmt.Println()
+			fmt.Println("⚠️  警告: 部分 bin 文件不存在，请先构建")
+		}
+		fmt.Println()
+	}
+
+	// 显示将要生成的产物
+	fmt.Println("📤 发布产物:")
+	tarballName := fmt.Sprintf("%s-%s.tar.gz", packageName, newVersion)
+	fmt.Printf("   📦 %s\n", tarballName)
+	fmt.Printf("   📄 package.json\n")
+	fmt.Println()
+
+	// 显示将要执行的 Git 操作
+	fmt.Println("🔀 Git 操作:")
+	fmt.Printf("   📝 commit: chore: release v%s\n", newVersion)
+	fmt.Printf("   🏷️  tag: v%s\n", newVersion)
+	fmt.Printf("   🚀 push: origin\n")
+	fmt.Println()
+
+	fmt.Println("=" + strings.Repeat("=", 50))
+	fmt.Println("💡 这是预览模式，没有执行任何实际操作")
+	fmt.Println("   移除 --dry-run 参数以执行实际发布")
+
+	return nil
+}
+
+// previewPackageFiles 预览将要打包的文件
+func previewPackageFiles() (included []string, excluded []string) {
+	// 默认排除规则
+	defaultExcludes := []string{
+		".git",
+		".github",
+		"*.tar.gz",
+		"*.go",
+		"go.mod",
+		"go.sum",
+		"node_modules",
+		".DS_Store",
+	}
+
+	// 遍历当前目录
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return nil, nil
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		isExcluded := false
+
+		for _, pattern := range defaultExcludes {
+			if strings.HasPrefix(pattern, "*.") {
+				// 扩展名匹配
+				if strings.HasSuffix(name, pattern[1:]) {
+					isExcluded = true
+					break
+				}
+			} else if name == pattern {
+				isExcluded = true
+				break
+			}
+		}
+
+		if isExcluded {
+			excluded = append(excluded, name)
+		} else {
+			if entry.IsDir() {
+				included = append(included, name+"/")
+			} else {
+				included = append(included, name)
+			}
+		}
+	}
+
+	return included, excluded
 }
 
 // calculateNewVersion 计算新版本号

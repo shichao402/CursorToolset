@@ -145,6 +145,14 @@ else
     print_warning "未找到 docs/public/package-dev-guide.md"
 fi
 
+# Step 6.1: 复制 release workflow 模板
+if [ -f "${PROJECT_DIR}/docs/public/release-workflow-template.yml" ]; then
+    cp "${PROJECT_DIR}/docs/public/release-workflow-template.yml" "${DOCS_DIR}/release-workflow-template.yml"
+    print_success "Release workflow 模板已安装"
+else
+    print_warning "未找到 docs/public/release-workflow-template.yml"
+fi
+
 # Step 7: 清理构建产物
 rm -f cursortoolset
 print_info "已清理本地构建产物"

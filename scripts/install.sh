@@ -228,6 +228,16 @@ main() {
         print_warning "包开发指南下载失败"
     fi
     
+    # 下载 release workflow 模板
+    WORKFLOW_TEMPLATE_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/docs/public/release-workflow-template.yml"
+    WORKFLOW_TEMPLATE_PATH="${DOCS_DIR}/release-workflow-template.yml"
+    
+    if curl -fsSL -o "${WORKFLOW_TEMPLATE_PATH}" "${WORKFLOW_TEMPLATE_URL}"; then
+        print_success "Release workflow 模板下载成功"
+    else
+        print_warning "Release workflow 模板下载失败"
+    fi
+    
     # 添加到 PATH
     print_info "配置环境变量..."
     

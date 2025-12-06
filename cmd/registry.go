@@ -151,7 +151,11 @@ var registryListCmd = &cobra.Command{
 		fmt.Printf("📦 Registry 中有 %d 个包:\n\n", len(packages))
 		for i, item := range packages {
 			fmt.Printf("%d. %s\n", i+1, item.Name)
-			fmt.Printf("   Manifest: %s\n", item.ManifestURL)
+			if item.Repository != "" {
+				fmt.Printf("   仓库: %s\n", item.Repository)
+			} else if item.ManifestURL != "" { //nolint:staticcheck // 向后兼容
+				fmt.Printf("   Manifest: %s\n", item.ManifestURL) //nolint:staticcheck // 向后兼容
+			}
 
 			// 显示缓存的 manifest 信息
 			if manifest := mgr.FindPackage(item.Name); manifest != nil {

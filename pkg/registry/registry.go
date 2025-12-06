@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -134,9 +135,15 @@ func (m *Manager) updateManifest(item types.RegistryItem) error {
 		return err
 	}
 
+	// 获取 manifest URL
+	manifestURL := m.getManifestURL(item)
+	if manifestURL == "" {
+		return fmt.Errorf("无法确定 manifest URL")
+	}
+
 	// 下载 manifest
 	m.downloader.SetShowProgress(false)
-	if err := m.downloader.DownloadFile(item.ManifestURL, manifestPath+".tmp"); err != nil {
+	if err := m.downloader.DownloadFile(manifestURL, manifestPath+".tmp"); err != nil {
 		return err
 	}
 
@@ -150,6 +157,12 @@ func (m *Manager) updateManifest(item types.RegistryItem) error {
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		_ = os.Remove(manifestPath + ".tmp")
 		return fmt.Errorf("解析 manifest 失败: %w", err)
+	}
+
+	// 处理相对路径的 tarball URL
+	if manifest.Dist.Tarball != "" && !strings.HasPrefix(manifest.Dist.Tarball, "http") {
+		// tarball 是相对路径，需要组装完整 URL
+		manifest.Dist.Tarball = m.resolveTarballURL(item, manifest.Dist.Tarball, manifest.Version)
 	}
 
 	// 创建带缓存时间的 manifest
@@ -173,6 +186,48 @@ func (m *Manager) updateManifest(item types.RegistryItem) error {
 	_ = os.Remove(manifestPath + ".tmp")
 	m.manifests[item.Name] = &cached
 	return nil
+}
+
+// getManifestURL 获取包的 manifest URL
+// 支持两种格式：
+// 1. 新格式（repository）：自动组装 GitHub Releases URL
+// 2. 旧格式（manifestUrl）：直接使用完整 URL（向后兼容）
+func (m *Manager) getManifestURL(item types.RegistryItem) string {
+	// 优先使用新格式
+	if item.Repository != "" {
+		// 将 GitHub 仓库地址转换为 Releases URL
+		// https://github.com/user/repo -> https://github.com/user/repo/releases/latest/download/package.json
+		repoURL := strings.TrimSuffix(item.Repository, "/")
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+		return repoURL + "/releases/latest/download/package.json"
+	}
+
+	// 向后兼容：使用旧的 manifestUrl
+	//nolint:staticcheck // 向后兼容旧格式
+	return item.ManifestURL
+}
+
+// resolveTarballURL 解析 tarball 的完整 URL
+// 如果 tarball 是相对路径，根据 repository 组装完整 URL
+func (m *Manager) resolveTarballURL(item types.RegistryItem, tarball string, version string) string {
+	if item.Repository != "" {
+		// 新格式：从 repository 组装
+		// https://github.com/user/repo/releases/download/v1.0.0/package-1.0.0.tar.gz
+		repoURL := strings.TrimSuffix(item.Repository, "/")
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+		return fmt.Sprintf("%s/releases/download/v%s/%s", repoURL, version, tarball)
+	}
+
+	// 旧格式：从 manifestUrl 推断基础路径
+	//nolint:staticcheck // 向后兼容旧格式
+	if item.ManifestURL != "" {
+		//nolint:staticcheck // 向后兼容旧格式
+		baseURL := path.Dir(item.ManifestURL)
+		return baseURL + "/" + tarball
+	}
+
+	// 无法解析，返回原值
+	return tarball
 }
 
 // GetRegistry 获取 registry
@@ -266,10 +321,10 @@ func (m *Manager) HasLocalCache() bool {
 // ========================================
 
 // AddPackage 添加包到 registry（用于发布）
-func (m *Manager) AddPackage(name, manifestURL string) error {
+func (m *Manager) AddPackage(name, repository string) error {
 	if m.registry == nil {
 		m.registry = &types.Registry{
-			Version:  "1",
+			Version:  "2",
 			Packages: []types.RegistryItem{},
 		}
 	}
@@ -278,15 +333,15 @@ func (m *Manager) AddPackage(name, manifestURL string) error {
 	for i, item := range m.registry.Packages {
 		if item.Name == name {
 			// 更新
-			m.registry.Packages[i].ManifestURL = manifestURL
+			m.registry.Packages[i].Repository = repository
 			return m.saveRegistry()
 		}
 	}
 
 	// 添加新包
 	m.registry.Packages = append(m.registry.Packages, types.RegistryItem{
-		Name:        name,
-		ManifestURL: manifestURL,
+		Name:       name,
+		Repository: repository,
 	})
 
 	return m.saveRegistry()

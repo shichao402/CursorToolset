@@ -158,6 +158,18 @@ func createPackageStructure(targetDir, packageName string, isReinit bool) error 
 		fmt.Println("  ⏭️  跳过 .cursortoolset/（已存在）")
 	}
 
+	// 创建 .github/workflows/release.yml（仅新项目或不存在时）
+	workflowPath := filepath.Join(targetDir, ".github", "workflows", "release.yml")
+	if _, err := os.Stat(workflowPath); os.IsNotExist(err) {
+		if err := createReleaseWorkflow(targetDir); err != nil {
+			fmt.Printf("  ⚠️  创建 release workflow 失败: %v\n", err)
+		} else {
+			fmt.Println("  ✅ 创建 .github/workflows/release.yml")
+		}
+	} else if isReinit {
+		fmt.Println("  ⏭️  跳过 .github/workflows/release.yml（已存在）")
+	}
+
 	// 创建 .gitignore（仅新项目或不存在时）
 	gitignorePath := filepath.Join(targetDir, ".gitignore")
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
@@ -374,6 +386,82 @@ dist/
 *.log
 `
 	return os.WriteFile(filepath.Join(targetDir, ".gitignore"), []byte(content), 0644)
+}
+
+// createReleaseWorkflow 创建 GitHub Actions release workflow
+func createReleaseWorkflow(targetDir string) error {
+	workflowDir := filepath.Join(targetDir, ".github", "workflows")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		return err
+	}
+
+	// 尝试从安装目录复制 workflow 模板
+	rootDir, err := paths.GetRootDir()
+	if err == nil {
+		srcPath := filepath.Join(rootDir, "docs", "release-workflow-template.yml")
+		if data, err := os.ReadFile(srcPath); err == nil {
+			return os.WriteFile(filepath.Join(workflowDir, "release.yml"), data, 0644)
+		}
+	}
+
+	// 如果复制失败，使用内置模板
+	content := `name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # 获取版本号
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      # 打包
+      - name: Create tarball
+        run: |
+          PACKAGE_NAME=$(jq -r '.name' toolset.json)
+          mkdir -p /tmp/release
+          tar -czvf /tmp/release/${PACKAGE_NAME}-${{ steps.version.outputs.VERSION }}.tar.gz \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='*.tar.gz' \
+            .
+      
+      # 计算 SHA256 并生成 package.json
+      - name: Generate package.json
+        run: |
+          PACKAGE_NAME=$(jq -r '.name' toolset.json)
+          TARBALL="${PACKAGE_NAME}-${{ steps.version.outputs.VERSION }}.tar.gz"
+          SHA256=$(sha256sum /tmp/release/$TARBALL | cut -d' ' -f1)
+          SIZE=$(stat -c%s /tmp/release/$TARBALL)
+          
+          jq --arg tarball "$TARBALL" \
+             --arg sha256 "$SHA256" \
+             --arg size "$SIZE" \
+             --arg version "${{ steps.version.outputs.VERSION }}" \
+             '.version = $version | .dist.tarball = $tarball | .dist.sha256 = $sha256 | .dist.size = ($size | tonumber)' \
+             toolset.json > /tmp/release/package.json
+      
+      # 创建 Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            /tmp/release/package.json
+            /tmp/release/*.tar.gz
+          generate_release_notes: true
+`
+	return os.WriteFile(filepath.Join(workflowDir, "release.yml"), []byte(content), 0644)
 }
 
 // toDisplayName 将包名转换为显示名称
