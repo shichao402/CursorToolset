@@ -25,13 +25,13 @@ Cursor 工具集管理器 - 一个简洁的包管理工具，用于管理和安�
 #### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shichao402/CursorToolset/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/scripts/install.sh | bash
 ```
 
 #### Windows (PowerShell)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/shichao402/CursorToolset/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/scripts/install.ps1 | iex
 ```
 
 ### 基本使用

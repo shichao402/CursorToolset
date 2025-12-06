@@ -201,15 +201,6 @@ main() {
     chmod +x "${BINARY_PATH}"
     print_success "预编译版本下载成功"
     
-    # 下载配置文件到新位置
-    print_info "下载配置文件..."
-    if ! curl -fsSL -o "${CONFIG_PATH}" \
-        "https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/available-toolsets.json"; then
-        print_warning "配置文件下载失败，将使用默认配置"
-    else
-        print_success "配置文件已保存到 ${CONFIG_PATH}"
-    fi
-    
     # 添加到 PATH
     print_info "配置环境变量..."
     

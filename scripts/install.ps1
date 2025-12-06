@@ -143,16 +143,6 @@ function Install-CursorToolset {
         exit 1
     }
     
-    # 下载配置文件到新位置
-    Write-ColorOutput "下载配置文件..." -Type "Info"
-    try {
-        $configUrl = "https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/available-toolsets.json"
-        Invoke-WebRequest -Uri $configUrl -OutFile $configPath
-        Write-ColorOutput "配置文件已保存到 $configPath" -Type "Success"
-    } catch {
-        Write-ColorOutput "配置文件下载失败，将使用默认配置" -Type "Warning"
-    }
-    
     # 添加到 PATH
     Write-ColorOutput "配置环境变量..." -Type "Info"
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
