@@ -1,0 +1,318 @@
+# CursorToolset
+
+Cursor 工具集管理器 - 一个简洁的包管理工具，用于管理和安装 Cursor AI 工具集。
+
+## 设计理念
+
+- **简单** - 像 pip/brew 一样简单：下载、解压、完成
+- **安全** - 不执行任何脚本，只做文件分发
+- **透明** - 所有包信息公开可查，SHA256 校验
+
+## ✨ 特性
+
+- 📦 **简单易用** - 类似 npm/pip 的命令行体验
+- 🔒 **安全可靠** - SHA256 校验，不执行任何脚本
+- 🌍 **跨平台** - 支持 Linux、macOS、Windows
+- 🔗 **可执行程序暴露** - 自动创建符号链接，像系统命令一样使用
+- 📚 **Registry 机制** - 中心化的包索引，易于发现和管理
+- 🔄 **依赖管理** - 自动处理包依赖关系
+- 💾 **智能缓存** - 减少重复下载，支持离线使用
+
+## 快速开始
+
+### 安装 CursorToolset
+
+#### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/scripts/install.sh | bash
+```
+
+#### Windows (PowerShell)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/shichao402/CursorToolset/ReleaseLatest/scripts/install.ps1 | iex
+```
+
+### 基本使用
+
+```bash
+# 更新包索引
+cursortoolset registry update
+
+# 列出可用包
+cursortoolset list
+
+# 安装包
+cursortoolset install github-action-toolset
+
+# 搜索包
+cursortoolset search github
+
+# 查看包详情
+cursortoolset info github-action-toolset
+
+# 卸载包
+cursortoolset uninstall github-action-toolset
+```
+
+## 命令参考
+
+### 包管理
+
+| 命令 | 说明 |
+|------|------|
+| `install [name]` | 安装包（不指定则安装所有） |
+| `uninstall <name>` | 卸载包 |
+| `list [--installed]` | 列出可用/已安装的包 |
+| `search <keyword>` | 搜索包 |
+| `info <name>` | 查看包详情 |
+| `update` | 更新管理器和包 |
+
+### 包开发
+
+| 命令 | 说明 |
+|------|------|
+| `init <name>` | 初始化新的工具集包项目 |
+| `pack [dir]` | 标准化打包工具集包 🆕 |
+
+### Registry 管理
+
+| 命令 | 说明 |
+|------|------|
+| `registry update` | 更新本地包索引 |
+| `registry list` | 列出 registry 中的包 |
+| `registry add <name>` | 添加包（维护者） |
+| `registry remove <name>` | 移除包（维护者） |
+| `registry export` | 导出 registry |
+
+### 包开发
+
+| 命令 | 说明 |
+|------|------|
+| `init <name>` | 初始化新的包项目 |
+
+### 其他
+
+| 命令 | 说明 |
+|------|------|
+| `clean [--cache] [--all]` | 清理缓存或所有 |
+| `update --self` | 更新管理器本身 |
+
+## 目录结构
+
+```
+~/.cursortoolsets/
+├── repos/                    # 已安装的包
+│   └── github-action-toolset/
+├── cache/
+│   ├── packages/             # 下载缓存
+│   └── manifests/            # manifest 缓存
+├── config/
+│   └── registry.json         # 本地 registry
+└── bin/
+    └── cursortoolset
+```
+
+## 开发包
+
+### 1. 初始化包项目
+
+```bash
+# 初始化新包
+cursortoolset init my-toolset
+cd my-toolset
+```
+
+生成的结构：
+
+```
+my-toolset/
+├── toolset.json          # 包配置（必需）
+├── .cursortoolset/       # 开发规则
+├── README.md
+└── .gitignore
+```
+
+### 2. 开发你的工具集
+
+```bash
+# 创建规则文件
+mkdir -p rules
+echo "# My Rules" > rules/my-rules.md
+
+# 添加可执行程序（可选）
+mkdir -p bin
+echo "#!/bin/bash" > bin/mytool
+chmod +x bin/mytool
+```
+
+### 3. 标准化打包 🆕
+
+```bash
+# 验证配置并打包
+cursortoolset pack --verify
+
+# 生成：my-toolset-1.0.0.tar.gz
+# 自动计算并更新 SHA256
+```
+
+### 4. 发布
+
+```bash
+# 创建 GitHub Release
+git tag v1.0.0
+git push origin v1.0.0
+
+# 在 GitHub 上创建 Release 并上传 tar.gz
+# 更新 toolset.json 中的 dist.tarball 地址
+```
+
+详见：[标准化打包文档](docs/PACK_FEATURE.md) 📚
+
+### toolset.json 规范
+
+```json
+{
+  "name": "my-toolset",
+  "displayName": "My Toolset",
+  "version": "1.0.0",
+  "description": "包描述",
+  "author": "作者",
+  "license": "MIT",
+  "keywords": ["keyword1", "keyword2"],
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/my-toolset.git"
+  },
+  
+  "bin": {
+    "mytool": "bin/mytool",
+    "mytool-helper": "scripts/helper.sh"
+  },
+  
+  "dist": {
+    "tarball": "https://github.com/user/my-toolset/releases/download/v1.0.0/my-toolset-1.0.0.tar.gz",
+    "sha256": "abc123..."
+  },
+  
+  "cursortoolset": {
+    "minVersion": "1.0.0"
+  }
+}
+```
+
+#### 可执行程序配置 (bin)
+
+通过 `bin` 字段可以暴露包中的可执行程序，安装时会自动创建符号链接：
+
+```json
+{
+  "bin": {
+    "command-name": "path/to/executable"
+  }
+}
+```
+
+安装后：
+1. 符号链接会创建到 `~/.cursortoolsets/bin/`
+2. 用户将该目录添加到 PATH 后即可直接使用命令
+
+```bash
+# 添加到 PATH（一次性配置）
+export PATH="$HOME/.cursortoolsets/bin:$PATH"
+
+# 直接使用命令
+mytool --help
+mytool-helper process
+```
+
+详见 [Bin 功能文档](docs/BIN_FEATURE.md)
+
+### 发布包
+
+1. **打包**
+   ```bash
+   tar -czvf my-toolset-1.0.0.tar.gz *
+   shasum -a 256 my-toolset-1.0.0.tar.gz
+   ```
+
+2. **更新 toolset.json**
+   - 更新 `version`
+   - 更新 `dist.tarball` URL
+   - 更新 `dist.sha256`
+
+3. **创建 GitHub Release**
+   - 创建 tag: `git tag v1.0.0`
+   - 上传 tarball 到 Release
+
+4. **提交到 Registry**
+   - Fork CursorToolset 仓库
+   - 编辑 `registry.json` 添加你的包
+   - 提交 PR
+
+详细指南请查看 [PACKAGE_DEV.md](./PACKAGE_DEV.md)
+
+## Registry
+
+Registry 是包的索引文件，托管在 GitHub Release 中：
+
+```json
+{
+  "version": "1",
+  "packages": [
+    {
+      "name": "github-action-toolset",
+      "manifestUrl": "https://raw.githubusercontent.com/.../toolset.json"
+    }
+  ]
+}
+```
+
+管理器通过以下流程获取包：
+
+```
+1. 下载 registry.json（从 GitHub Release）
+2. 获取包的 manifestUrl
+3. 下载 toolset.json（manifest）
+4. 从 manifest.dist.tarball 下载包
+5. 验证 SHA256
+6. 解压到本地
+```
+
+## 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `CURSOR_TOOLSET_HOME` | 安装根目录 | `~/.cursortoolsets` |
+
+## 从源码构建
+
+```bash
+git clone https://github.com/shichao402/CursorToolset.git
+cd CursorToolset
+go build -o cursortoolset .
+```
+
+## 📚 文档
+
+### 用户文档
+- **[使用示例](docs/USAGE_EXAMPLE.md)** - 完整的使用示例和最佳实践 ⭐
+- [安装指南](docs/INSTALL_GUIDE.md) - 详细的安装步骤
+
+### 包开发文档
+- [包开发指南](docs/PACKAGE_DEV.md) - 创建和发布工具集包
+- **[标准化打包文档](docs/PACK_FEATURE.md)** - 打包、发布流程 🆕
+- **[Bin 功能文档](docs/BIN_FEATURE.md)** - 可执行程序暴露功能 🆕
+- [配置示例](docs/examples/README.md) - 各种配置示例
+
+### 开发者文档
+- [构建指南](docs/BUILD_GUIDE.md) - 从源码构建
+- [架构设计](docs/ARCHITECTURE.md) - 系统架构和设计理念
+- [测试指南](docs/TESTING.md) - 运行和编写测试
+- [开发规则](.cursor/rules/cursortoolset-development.md) - 项目开发规范
+
+## 许可证
+
+MIT
