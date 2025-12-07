@@ -2,13 +2,41 @@
   "version": "3",
   "packages": [
     {
-      "repository": "https://github.com/shichao402/GithubActionAISelfBuilder"
+      "repository": "https://github.com/shichao402/GithubActionAISelfBuilder",
+      "name": "github-action-toolset",
+      "version": "1.0.8",
+      "description": "帮助 AI 助手完成 GitHub Actions CI/CD 任务",
+      "author": "shichao402",
+      "dist": {
+        "sha256": "f7dac2d64cb2286065e7526adfcea73c5f0289ea2fb103c3d8da7ad34d977a35",
+        "size": 30474856,
+        "tarball": "github-action-toolset-1.0.8.tar.gz"
+      }
     },
     {
-      "repository": "https://github.com/shichao402/cursortoolset-test-package"
+      "repository": "https://github.com/shichao402/cursortoolset-test-package",
+      "name": "test-package",
+      "version": "0.3.1",
+      "description": "用于验证 CursorToolset 包管理流程的测试包，包含一个输出编译时间的 Go 程序",
+      "author": "shichao402",
+      "dist": {
+        "tarball": "test-package-0.3.1.tar.gz",
+        "sha256": "e5a12ac23f5f9806f8ed97b35a814b6f5560adbed4cbcefb5048de1d66445163",
+        "size": 1121522
+      }
     },
     {
-      "repository": "https://github.com/shichao402/CursorColdStart"
+      "repository": "https://github.com/shichao402/CursorColdStart",
+      "name": "cursor-cold-start",
+      "version": "2.2.1",
+      "description": "项目AI冷启动初始化系统 - 使用 Go 实现的跨平台脚手架工具，帮助新项目快速启动并配置 Cursor AI 规则",
+      "author": "CursorColdStart Team",
+      "dist": {
+        "sha256": "e28b3ee2ec8d32554d590ec7007ba718bf008b56bd4c587bcf6236b46187d809",
+        "tarball": "cursor-cold-start-2.2.1.tar.gz",
+        "size": 8337793
+      }
     }
-  ]
+  ],
+  "updated_at": "2025-12-07T10:11:48Z"
 }
