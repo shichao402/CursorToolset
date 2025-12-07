@@ -13,7 +13,7 @@ my-toolset/
 │   └── rules/            # 规则文件
 ├── .github/
 │   └── workflows/
-│       └── release.yml   # 发布工作流（推荐）
+│       └── release.yml   # 自动发布工作流（可选）
 ├── .gitignore
 └── README.md
 ```
@@ -28,7 +28,6 @@ my-toolset/
 
 ```json
 {
-  "name": "my-toolset",
   "repository": "https://github.com/USERNAME/my-toolset"
 }
 ```
@@ -217,165 +216,51 @@ my-toolset/
 
 ## 发布流程
 
-### 方式一：使用 GitHub Actions（推荐）
+### 使用 cursortoolset release 命令
 
-#### 1. 添加 Release Workflow
-
-在 `.github/workflows/release.yml` 创建发布工作流：
-
-```yaml
-name: Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      # 如果有 Go 构建需求
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      
-      # 构建多平台二进制（如果需要）
-      - name: Build binaries
-        run: |
-          cd core/tools/go
-          mkdir -p dist
-          GOOS=darwin GOARCH=amd64 go build -o dist/my-command-darwin-amd64 ./cmd/my-command
-          GOOS=darwin GOARCH=arm64 go build -o dist/my-command-darwin-arm64 ./cmd/my-command
-          GOOS=linux GOARCH=amd64 go build -o dist/my-command-linux-amd64 ./cmd/my-command
-          GOOS=linux GOARCH=arm64 go build -o dist/my-command-linux-arm64 ./cmd/my-command
-          GOOS=windows GOARCH=amd64 go build -o dist/my-command-windows-amd64.exe ./cmd/my-command
-          GOOS=windows GOARCH=arm64 go build -o dist/my-command-windows-arm64.exe ./cmd/my-command
-      
-      # 获取版本号
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
-      # 打包
-      - name: Create tarball
-        run: |
-          mkdir -p /tmp/release
-          tar -czvf /tmp/release/${{ github.event.repository.name }}-${{ steps.version.outputs.VERSION }}.tar.gz \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='*.tar.gz' \
-            --exclude='*.go' \
-            --exclude='go.mod' \
-            --exclude='go.sum' \
-            .
-      
-      # 计算 SHA256 并生成 package.json
-      - name: Generate package.json
-        run: |
-          TARBALL="${{ github.event.repository.name }}-${{ steps.version.outputs.VERSION }}.tar.gz"
-          SHA256=$(shasum -a 256 /tmp/release/$TARBALL | cut -d' ' -f1)
-          SIZE=$(stat -f%z /tmp/release/$TARBALL 2>/dev/null || stat -c%s /tmp/release/$TARBALL)
-          
-          # 更新 package.json 的 dist 字段
-          jq --arg tarball "$TARBALL" \
-             --arg sha256 "$SHA256" \
-             --arg size "$SIZE" \
-             '.dist.tarball = $tarball | .dist.sha256 = $sha256 | .dist.size = ($size | tonumber)' \
-             package.json > /tmp/release/package.json
-      
-      # 创建 Release
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            /tmp/release/package.json
-            /tmp/release/${{ github.event.repository.name }}-${{ steps.version.outputs.VERSION }}.tar.gz
-          generate_release_notes: true
-```
-
-#### 2. 发布新版本
+**这是唯一推荐的发布方式**，自动保证版本一致性，避免常见错误。
 
 ```bash
-# 更新 package.json 中的版本号
-# 提交更改
-git add .
-git commit -m "chore: release v1.0.0"
+# 发布 patch 版本 (0.0.x) - 默认
+cursortoolset release
 
-# 创建并推送 tag
-git tag v1.0.0
-git push origin main --tags
+# 发布 minor 版本 (0.x.0)
+cursortoolset release --minor
+
+# 发布 major 版本 (x.0.0)
+cursortoolset release --major
+
+# 预览发布流程（不执行）
+cursortoolset release --dry-run
 ```
 
-GitHub Actions 会自动：
-1. 构建二进制文件（如果配置了）
-2. 打包 tarball
-3. 计算 SHA256
-4. 生成 package.json
-5. 创建 Release 并上传文件
+**命令自动完成：**
+1. ✅ 提升 `package.json` 中的版本号
+2. ✅ 打包 tarball（包含正确版本的 package.json）
+3. ✅ 计算 SHA256 并更新 `package.json`
+4. ✅ Git commit
+5. ✅ 创建 Git tag
+6. ✅ 推送到远程仓库
 
-### 方式二：手动发布
+**发布后，在 GitHub 创建 Release：**
+1. 在 GitHub 仓库页面点击 "Releases" → "Draft a new release"
+2. 选择刚才推送的 tag（如 `v1.0.0`）
+3. 上传生成的 `<package-name>-<version>.tar.gz` 文件
+4. 上传更新后的 `package.json` 文件
+5. 发布
 
-#### 1. 更新版本号
+> **提示**：使用 `--dry-run` 先预览，确认无误后再正式发布。
 
-编辑 `package.json`，更新 `version` 字段。
+### 配置 GitHub Actions 自动创建 Release（可选）
 
-#### 2. 构建（如果有 bin）
+如果希望推送 tag 后自动创建 GitHub Release，可以使用 `cursortoolset init` 生成的 workflow：
 
 ```bash
-# Go 项目示例
-cd core/tools/go
-mkdir -p dist
-GOOS=darwin GOARCH=amd64 go build -o dist/my-command-darwin-amd64 ./cmd/my-command
-GOOS=darwin GOARCH=arm64 go build -o dist/my-command-darwin-arm64 ./cmd/my-command
-# ... 其他平台
+# 初始化时会自动创建 .github/workflows/release.yml
+cursortoolset init my-toolset
 ```
 
-#### 3. 打包
-
-```bash
-tar -czvf my-toolset-1.0.0.tar.gz \
-  --exclude='.git' \
-  --exclude='.github' \
-  --exclude='*.tar.gz' \
-  --exclude='*.go' \
-  --exclude='go.mod' \
-  --exclude='go.sum' \
-  .
-```
-
-#### 4. 计算 SHA256
-
-```bash
-shasum -a 256 my-toolset-1.0.0.tar.gz
-```
-
-#### 5. 生成 package.json
-
-复制 `package.json`，更新 `dist` 字段：
-
-```json
-{
-  "dist": {
-    "tarball": "my-toolset-1.0.0.tar.gz",
-    "sha256": "计算得到的SHA256",
-    "size": 文件大小
-  }
-}
-```
-
-#### 6. 创建 GitHub Release
-
-1. 在 GitHub 仓库创建 Release
-2. Tag 选择 `v1.0.0`
-3. 上传 `package.json` 和 `my-toolset-1.0.0.tar.gz`
-4. 发布
+配置好后，`cursortoolset release` 推送 tag 后，GitHub Actions 会自动创建 Release 并上传文件。
 
 ---
 
@@ -437,19 +322,30 @@ cursortoolset release --dry-run
 # 初始化新包
 cursortoolset init my-toolset
 
-# 打包
+# 打包（唯一标准方式）
 cursortoolset pack
 
-# 本地发布预览
+# 发布预览
 cursortoolset release --dry-run
+
+# 发布新版本（唯一标准方式）
+cursortoolset release
 
 # 本地安装测试
 cursortoolset install ./my-toolset
 ```
 
+> **重要**：始终使用 `cursortoolset pack` 和 `cursortoolset release` 命令，不要手动执行 tar 打包或版本管理，以确保版本一致性。
+
 ---
 
 ## 常见问题
+
+### Q: 每次 `cursortoolset update` 都重复安装同一个包
+
+**原因**：tarball 内的 `package.json` 版本号与 release 版本不一致。
+
+**解决**：使用 `cursortoolset release` 重新发布，它会自动保证版本一致性。
 
 ### Q: tarball 打包时出现 "file changed as we read it"
 

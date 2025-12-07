@@ -466,7 +466,17 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      # 打包（输出到 /tmp/release 避免打包时文件变化）
+      # 【关键】先同步 package.json 版本号，再打包
+      - name: Sync package.json version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "📌 同步版本号: $VERSION"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          echo "✅ package.json 版本已更新"
+          cat package.json | jq '{name, version}'
+      
+      # 打包（此时 package.json 已包含正确版本号）
       - name: Create tarball
         run: |
           PACKAGE_NAME=$(jq -r '.name' package.json)
@@ -477,20 +487,23 @@ jobs:
             --exclude='*.tar.gz' \
             .
       
-      # 计算 SHA256 并更新 package.json
+      # 计算 SHA256 并生成最终 package.json
       - name: Generate release package.json
         run: |
           PACKAGE_NAME=$(jq -r '.name' package.json)
-          TARBALL="${PACKAGE_NAME}-${{ steps.version.outputs.VERSION }}.tar.gz"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          TARBALL="${PACKAGE_NAME}-${VERSION}.tar.gz"
           SHA256=$(sha256sum /tmp/release/$TARBALL | cut -d' ' -f1)
           SIZE=$(stat -c%s /tmp/release/$TARBALL)
           
           jq --arg tarball "$TARBALL" \
              --arg sha256 "$SHA256" \
              --arg size "$SIZE" \
-             --arg version "${{ steps.version.outputs.VERSION }}" \
-             '.version = $version | .dist.tarball = $tarball | .dist.sha256 = $sha256 | .dist.size = ($size | tonumber)' \
+             '.dist.tarball = $tarball | .dist.sha256 = $sha256 | .dist.size = ($size | tonumber)' \
              package.json > /tmp/release/package.json
+          
+          echo "📦 Release package.json:"
+          cat /tmp/release/package.json | jq '{name, version, dist}'
       
       # 创建 Release
       - name: Create Release
