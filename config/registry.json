@@ -36,6 +36,9 @@
         "tarball": "cursor-cold-start-2.4.1.tar.gz",
         "size": 8391174
       }
+    },
+    {
+      "repository": "https://github.com/shichao402/github-issue-pack"
     }
   ],
   "updated_at": "2025-12-07T17:17:38Z"
