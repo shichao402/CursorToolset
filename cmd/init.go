@@ -52,16 +52,12 @@ var initCmd = &cobra.Command{
 		// 检查目录是否已存在
 		existingProject := false
 		if _, err := os.Stat(targetDir); err == nil {
-			// 检查是否已经初始化（支持新旧两种文件名）
+			// 检查是否已经初始化
 			packageJsonExists := false
 			if _, err := os.Stat(filepath.Join(targetDir, "package.json")); err == nil {
 				packageJsonExists = true
 			}
-			toolsetJsonExists := false
-			if _, err := os.Stat(filepath.Join(targetDir, "toolset.json")); err == nil {
-				toolsetJsonExists = true
-			}
-			if packageJsonExists || toolsetJsonExists {
+			if packageJsonExists {
 				if !initForce {
 					return fmt.Errorf("目录 %s 已经是一个工具集包项目\n\n提示: 使用 --force 强制重新初始化", targetDir)
 				}
@@ -200,15 +196,11 @@ func createPackageStructure(targetDir, packageName string, isReinit bool) error 
 func createPackageJSON(targetDir, packageName string, isReinit bool) error {
 	manifestPath := filepath.Join(targetDir, "package.json")
 
-	// 如果是重新初始化，尝试读取现有配置（支持新旧两种文件名）
+	// 如果是重新初始化，尝试读取现有配置
 	var existingData map[string]interface{}
 	if isReinit {
-		// 优先读取 package.json
+		// 读取 package.json
 		data, err := os.ReadFile(manifestPath)
-		if err != nil {
-			// 回退到 toolset.json
-			data, err = os.ReadFile(filepath.Join(targetDir, "toolset.json"))
-		}
 		if err == nil {
 			_ = json.Unmarshal(data, &existingData)
 		}
@@ -257,13 +249,6 @@ func createPackageJSON(targetDir, packageName string, isReinit bool) error {
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
-	}
-
-	// 如果存在旧的 toolset.json，删除它
-	oldPath := filepath.Join(targetDir, "toolset.json")
-	if _, err := os.Stat(oldPath); err == nil {
-		_ = os.Remove(oldPath)
-		fmt.Println("  🔄 迁移 toolset.json -> package.json")
 	}
 
 	return os.WriteFile(manifestPath, data, 0644)

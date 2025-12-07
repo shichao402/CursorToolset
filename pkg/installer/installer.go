@@ -289,7 +289,7 @@ func (i *Installer) unlinkBinaries(manifest *types.Manifest) error {
 
 // loadPackageManifest 从已安装的包中加载 manifest
 func (i *Installer) loadPackageManifest(packagePath string) (*types.Manifest, error) {
-	manifestPath := filepath.Join(packagePath, "toolset.json")
+	manifestPath := filepath.Join(packagePath, "package.json")
 	
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {

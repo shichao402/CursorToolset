@@ -15,18 +15,23 @@ const (
 // ~/.cursortoolsets/              <- CURSOR_TOOLSET_HOME（默认）
 // ├── repos/                      <- 已安装的包（解压后的内容）
 // │   ├── github-action-toolset/
+// │   │   └── package.json        <- 包的自描述文件
 // │   └── other-toolset/
 // ├── cache/                      <- 缓存目录
 // │   ├── packages/               <- 下载的 tarball 缓存
 // │   │   └── github-action-toolset-1.0.0.tar.gz
 // │   └── manifests/              <- manifest 缓存
-// │       └── github-action-toolset.json
+// │       └── github-action-toolset.jsoncursortoolset update --self
+
 // ├── config/                     <- 配置文件
 // │   └── registry.json           <- 本地 registry 缓存
-// └── bin/                        <- CursorToolset 自身的可执行文件
-//     └── cursortoolset
+// ├── bin/                        <- 可执行文件（包暴露的命令 + cursortoolset）
+// │   ├── cursortoolset
+// │   └── gh-action-debug -> ../repos/github-action-toolset/...
+// └── docs/                       <- 包开发文档（供 init 命令复制）
+//     └── package-dev-guide.md
 
-// GetRootDir 获取 CursorToolset 根目录
+// GetRootDir 获取 CursorToolset 根目录u
 // 优先级：
 // 1. 环境变量 CURSOR_TOOLSET_HOME（如果设置）
 // 2. 默认路径：~/.cursortoolsets
@@ -159,20 +164,4 @@ func EnsureAllDirs() error {
 	}
 
 	return nil
-}
-
-// ========================================
-// 兼容旧版本的函数（逐步废弃）
-// ========================================
-
-// GetToolsetsDir 获取工具集安装目录（为了向后兼容保留）
-// Deprecated: 使用 GetReposDir 替代
-func GetToolsetsDir(workDir string) (string, error) {
-	return GetReposDir()
-}
-
-// GetToolsetConfigPath 获取 available-toolsets.json 配置文件路径
-// Deprecated: 使用 GetRegistryPath 替代
-func GetToolsetConfigPath() (string, error) {
-	return GetRegistryPath()
 }

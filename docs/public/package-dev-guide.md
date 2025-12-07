@@ -8,7 +8,7 @@
 
 ```
 my-toolset/
-├── toolset.json          # 包配置文件（必需）
+├── package.json          # 包配置文件（必需）
 ├── .cursortoolset/       # AI 规则目录
 │   └── rules/            # 规则文件
 ├── .github/
@@ -43,7 +43,7 @@ my-toolset/
 
 ```
 Release v1.0.0/
-├── package.json                  # 包配置（从 toolset.json 生成）
+├── package.json                  # 包配置
 ├── my-toolset-1.0.0.tar.gz       # 打包产物
 ```
 
@@ -173,7 +173,7 @@ my-toolset/
 │               ├── my-command-linux-arm64
 │               ├── my-command-windows-amd64.exe
 │               └── my-command-windows-arm64.exe
-├── toolset.json
+├── package.json
 └── .github/
     └── workflows/
         └── release.yml
@@ -181,7 +181,7 @@ my-toolset/
 
 ### 构建配置（可选）
 
-在 `toolset.json` 中添加 `build` 字段，供工具自动构建：
+在 `package.json` 中添加 `build` 字段，供工具自动构建：
 
 ```json
 {
@@ -283,12 +283,12 @@ jobs:
           SHA256=$(shasum -a 256 /tmp/release/$TARBALL | cut -d' ' -f1)
           SIZE=$(stat -f%z /tmp/release/$TARBALL 2>/dev/null || stat -c%s /tmp/release/$TARBALL)
           
-          # 从 toolset.json 生成 package.json，更新 dist 字段
+          # 更新 package.json 的 dist 字段
           jq --arg tarball "$TARBALL" \
              --arg sha256 "$SHA256" \
              --arg size "$SIZE" \
              '.dist.tarball = $tarball | .dist.sha256 = $sha256 | .dist.size = ($size | tonumber)' \
-             toolset.json > /tmp/release/package.json
+             package.json > /tmp/release/package.json
       
       # 创建 Release
       - name: Create Release
@@ -303,7 +303,7 @@ jobs:
 #### 2. 发布新版本
 
 ```bash
-# 更新 toolset.json 中的版本号
+# 更新 package.json 中的版本号
 # 提交更改
 git add .
 git commit -m "chore: release v1.0.0"
@@ -324,7 +324,7 @@ GitHub Actions 会自动：
 
 #### 1. 更新版本号
 
-编辑 `toolset.json`，更新 `version` 字段。
+编辑 `package.json`，更新 `version` 字段。
 
 #### 2. 构建（如果有 bin）
 
@@ -358,7 +358,7 @@ shasum -a 256 my-toolset-1.0.0.tar.gz
 
 #### 5. 生成 package.json
 
-复制 `toolset.json` 为 `package.json`，更新 `dist` 字段：
+复制 `package.json`，更新 `dist` 字段：
 
 ```json
 {
@@ -390,7 +390,7 @@ cursortoolset release --dry-run
 # 输出示例：
 # ✓ 版本: 1.0.0
 # ✓ 将包含的文件:
-#   - toolset.json
+#   - package.json
 #   - rules/
 #   - core/tools/go/dist/
 # ✗ 将排除的文件:

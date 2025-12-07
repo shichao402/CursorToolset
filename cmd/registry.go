@@ -41,7 +41,7 @@ var registryUpdateCmd = &cobra.Command{
 }
 
 var (
-	registryAddManifestURL string
+	registryAddRepository string
 )
 
 var registryAddCmd = &cobra.Command{
@@ -53,13 +53,13 @@ var registryAddCmd = &cobra.Command{
 添加后需要发布 registry 到 GitHub Release。
 
 示例：
-  cursortoolset registry add my-toolset --manifest-url https://raw.githubusercontent.com/xxx/main/toolset.json`,
+  cursortoolset registry add my-toolset --repository https://github.com/user/my-toolset`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		packageName := args[0]
 
-		if registryAddManifestURL == "" {
-			return fmt.Errorf("必须指定 --manifest-url")
+		if registryAddRepository == "" {
+			return fmt.Errorf("必须指定 --repository")
 		}
 
 		// 确保目录结构存在
@@ -72,7 +72,7 @@ var registryAddCmd = &cobra.Command{
 			return fmt.Errorf("加载 registry 失败: %w", err)
 		}
 
-		if err := mgr.AddPackage(packageName, registryAddManifestURL); err != nil {
+		if err := mgr.AddPackage(packageName, registryAddRepository); err != nil {
 			return fmt.Errorf("添加包失败: %w", err)
 		}
 
@@ -186,7 +186,7 @@ func init() {
 	registryCmd.AddCommand(registryListCmd)
 
 	// 添加 flags
-	registryAddCmd.Flags().StringVar(&registryAddManifestURL, "manifest-url", "", "包的 manifest URL（必需）")
+	registryAddCmd.Flags().StringVar(&registryAddRepository, "repository", "", "包的 GitHub 仓库地址（必需）")
 
 	// 添加到根命令
 	RootCmd.AddCommand(registryCmd)

@@ -1,6 +1,6 @@
 # CursorToolset 示例配置
 
-本目录包含各种 `toolset.json` 配置示例，帮助包开发者快速上手。
+本目录包含各种 `package.json` 配置示例，帮助包开发者快速上手。
 
 ## 文件列表
 
@@ -151,7 +151,7 @@
 
 ```
 my-toolset/
-├── toolset.json           # 包配置
+├── package.json           # 包配置
 ├── .cursorrules           # Cursor 规则文件
 └── README.md              # 文档
 ```
@@ -160,7 +160,7 @@ my-toolset/
 
 ```
 my-cli-toolset/
-├── toolset.json           # 包配置
+├── package.json           # 包配置
 ├── bin/                   # 可执行文件
 │   ├── mycli              # 主程序
 │   └── helper             # 辅助工具
@@ -175,7 +175,7 @@ my-cli-toolset/
 
 ```
 awesome-toolset/
-├── toolset.json           # 包配置
+├── package.json           # 包配置
 ├── bin/                   # 可执行文件
 │   └── awesome
 ├── scripts/               # 脚本目录
@@ -203,7 +203,7 @@ mkdir my-toolset
 cd my-toolset
 ```
 
-### 2. 编写 toolset.json
+### 2. 编写 package.json
 
 参考上面的示例配置。
 
@@ -221,7 +221,7 @@ chmod +x bin/mytool
 ```bash
 # 打包为 tar.gz
 tar -czf my-toolset-1.0.0.tar.gz \
-  toolset.json \
+  package.json \
   bin/ \
   scripts/ \
   README.md
@@ -234,7 +234,7 @@ shasum -a 256 my-toolset-1.0.0.tar.gz
 
 1. 在 GitHub 创建 Release
 2. 上传 `my-toolset-1.0.0.tar.gz`
-3. 更新 `toolset.json` 中的 `dist.tarball` 和 `dist.sha256`
+3. 更新 `package.json` 中的 `dist.tarball` 和 `dist.sha256`
 
 ### 6. 提交到 Registry
 
@@ -246,7 +246,7 @@ shasum -a 256 my-toolset-1.0.0.tar.gz
      "packages": [
        {
          "name": "my-toolset",
-         "manifestUrl": "https://raw.githubusercontent.com/user/my-toolset/main/toolset.json"
+         "repository": "https://github.com/user/my-toolset"
        }
      ]
    }
@@ -328,7 +328,7 @@ tar -czf test-1.0.0.tar.gz *
 # 2. 计算 SHA256
 shasum -a 256 test-1.0.0.tar.gz
 
-# 3. 更新 toolset.json 使用本地路径
+# 3. 更新 package.json 使用本地路径
 # 4. 安装测试
 cursortoolset install test --no-cache
 ```

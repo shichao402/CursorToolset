@@ -20,7 +20,7 @@ type RegistryItem struct {
 // Package Manifest 相关类型（包自描述）
 // ========================================
 
-// Manifest 表示包的自描述文件（toolset.json）
+// Manifest 表示包的自描述文件（package.json）
 // 由包开发者维护，包含包的完整元信息
 type Manifest struct {
 	// 基本信息

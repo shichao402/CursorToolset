@@ -128,7 +128,7 @@ cd my-toolset
 
 ```
 my-toolset/
-├── toolset.json          # 包配置（必需）
+├── package.json          # 包配置（必需）
 ├── .cursortoolset/       # 开发规则
 ├── README.md
 └── .gitignore
@@ -165,12 +165,12 @@ git tag v1.0.0
 git push origin v1.0.0
 
 # 在 GitHub 上创建 Release 并上传 tar.gz
-# 更新 toolset.json 中的 dist.tarball 地址
+# 更新 package.json 中的 dist.tarball 地址
 ```
 
 详见：[标准化打包文档](docs/PACK_FEATURE.md) 📚
 
-### toolset.json 规范
+### package.json 规范
 
 ```json
 {
@@ -238,7 +238,7 @@ mytool-helper process
    shasum -a 256 my-toolset-1.0.0.tar.gz
    ```
 
-2. **更新 toolset.json**
+2. **更新 package.json**
    - 更新 `version`
    - 更新 `dist.tarball` URL
    - 更新 `dist.sha256`
@@ -264,7 +264,7 @@ Registry 是包的索引文件，托管在 GitHub Release 中：
   "packages": [
     {
       "name": "github-action-toolset",
-      "manifestUrl": "https://raw.githubusercontent.com/.../toolset.json"
+      "repository": "https://github.com/..."
     }
   ]
 }
@@ -275,7 +275,7 @@ Registry 是包的索引文件，托管在 GitHub Release 中：
 ```
 1. 下载 registry.json（从 GitHub Release）
 2. 获取包的 manifestUrl
-3. 下载 toolset.json（manifest）
+3. 下载 package.json（manifest）
 4. 从 manifest.dist.tarball 下载包
 5. 验证 SHA256
 6. 解压到本地
