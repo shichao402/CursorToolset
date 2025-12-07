@@ -29,9 +29,6 @@ go.work
 .DS_Store
 Thumbs.db
 
-# Cursor 相关（安装后生成的内容）
-.cursor/
-
 # 开发根目录（开发时使用）
 .root/
 
