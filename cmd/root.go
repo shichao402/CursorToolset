@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/firoyang/CursorToolset/pkg/setup"
 	"github.com/firoyang/CursorToolset/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +39,11 @@ var RootCmd = &cobra.Command{
   # 更新 CursorToolset 和工具集
   cursortoolset update`,
 	Version: getVersionString(),
+	// 每次执行命令前自动检查并同步文档
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// 静默执行，不打扰用户
+		_ = setup.EnsureDocs()
+	},
 }
 
 // SetVersion 设置版本信息（从编译参数注入）

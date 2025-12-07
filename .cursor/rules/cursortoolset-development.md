@@ -9,6 +9,56 @@ CursorToolset 是一个 Cursor 工具集管理器，采用 Go 语言开发，类
 - **安全** - 不执行任何脚本，只做文件分发
 - **透明** - 所有包信息公开可查，SHA256 校验
 
+## 架构设计原则
+
+### 单一职责原则
+
+每个组件只负责自己的事情，通过状态文件解耦通信：
+
+```
+~/.cursortoolsets/
+├── .state/
+│   ├── version          # 二进制版本（install.sh / update --self 写入）
+│   └── docs_version     # 文档版本（setup 包写入）
+```
+
+**职责划分**：
+- `scripts/install.sh` - 只下载二进制 + 写入 `.state/version`
+- `cmd/update.go` - 只更新二进制 + 写入 `.state/version`
+- `pkg/setup/` - 只检测版本差异 + 同步文档 + 写入 `.state/docs_version`
+
+### 事件驱动模式
+
+状态变化后，由独立的响应者检测并处理：
+
+```go
+// root.go - 每次执行命令前自动检查
+PersistentPreRun: func(cmd *cobra.Command, args []string) {
+    _ = setup.EnsureDocs()  // 检测 version != docs_version 则同步
+}
+```
+
+**好处**：
+- 单点维护：文档同步逻辑只在 `pkg/setup/` 中
+- 解耦：install.sh 和 update 命令不需要知道文档如何同步
+- 幂等：多次调用结果一致
+
+### 状态管理规范
+
+```go
+// pkg/state/state.go - 状态读写的唯一入口
+state.GetVersion()      // 读取二进制版本
+state.SetVersion(v)     // 写入二进制版本
+state.GetDocsVersion()  // 读取文档版本
+state.SetDocsVersion(v) // 写入文档版本
+state.NeedDocsUpdate()  // 检查是否需要更新文档
+```
+
+**规则**：
+- 只有负责该状态的组件才能写入
+- 其他组件只能读取
+- 通过状态文件而非直接调用来触发行为
+
 ## 技术栈
 
 - **语言**: Go 1.21+
@@ -35,6 +85,8 @@ CursorToolset/
 │   ├── config/            # 配置管理
 │   ├── types/             # 类型定义
 │   ├── paths/             # 路径管理
+│   ├── state/             # 状态管理（版本状态文件读写）
+│   ├── setup/             # 初始化和文档同步
 │   ├── registry/          # Registry 管理
 │   ├── installer/         # 安装器
 │   ├── downloader/        # 下载器
@@ -53,6 +105,9 @@ CursorToolset/
 └── version.json          # 版本信息
 
 运行时目录结构 (~/.cursortoolsets/):
+├── .state/                # 状态文件（版本同步用）
+│   ├── version            # 当前安装的二进制版本
+│   └── docs_version       # 文档版本
 ├── repos/                 # 已安装的包
 ├── cache/
 │   ├── packages/          # 下载缓存
@@ -60,6 +115,9 @@ CursorToolset/
 ├── config/
 │   ├── registry.json      # 本地 registry 缓存
 │   └── settings.json      # 用户配置
+├── docs/                  # 文档文件（自动同步）
+│   ├── package-dev-guide.md
+│   └── release-workflow-template.yml
 └── bin/                   # 二进制文件
 ```
 

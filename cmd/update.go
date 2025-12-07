@@ -14,6 +14,7 @@ import (
 	"github.com/firoyang/CursorToolset/pkg/installer"
 	"github.com/firoyang/CursorToolset/pkg/paths"
 	"github.com/firoyang/CursorToolset/pkg/registry"
+	"github.com/firoyang/CursorToolset/pkg/state"
 	"github.com/spf13/cobra"
 )
 
@@ -227,9 +228,9 @@ func updateSelfBinary() error {
 
 	fmt.Printf("  ✅ 更新成功: %s -> %s\n", currentVer, latestVer)
 
-	// 更新文档文件
-	if err := updateDocs(latestVer); err != nil {
-		fmt.Printf("  ⚠️  更新文档失败: %v\n", err)
+	// 写入版本状态，触发下次命令执行时自动更新文档
+	if err := state.SetVersion(latestVer); err != nil {
+		fmt.Printf("  ⚠️  写入版本状态失败: %v\n", err)
 	}
 
 	return nil
@@ -374,61 +375,4 @@ func copyFile(src, dst string) error {
 	}
 
 	return os.WriteFile(dst, data, 0644)
-}
-
-// updateDocs 更新文档文件
-func updateDocs(version string) error {
-	fmt.Printf("  📚 更新文档...\n")
-
-	rootDir, err := paths.GetRootDir()
-	if err != nil {
-		return err
-	}
-
-	docsDir := filepath.Join(rootDir, "docs")
-	if err := os.MkdirAll(docsDir, 0755); err != nil {
-		return err
-	}
-
-	cfg := config.GetSystemConfig()
-	baseURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/docs/public",
-		cfg.RepoOwner, cfg.RepoName, version)
-
-	// 需要更新的文档文件
-	docFiles := []string{
-		"package-dev-guide.md",
-		"release-workflow-template.yml",
-	}
-
-	for _, filename := range docFiles {
-		url := fmt.Sprintf("%s/%s", baseURL, filename)
-		destPath := filepath.Join(docsDir, filename)
-
-		resp, err := http.Get(url)
-		if err != nil {
-			fmt.Printf("    ⚠️  下载 %s 失败: %v\n", filename, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("    ⚠️  下载 %s 失败: HTTP %d\n", filename, resp.StatusCode)
-			continue
-		}
-
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Printf("    ⚠️  读取 %s 失败: %v\n", filename, err)
-			continue
-		}
-
-		if err := os.WriteFile(destPath, data, 0644); err != nil {
-			fmt.Printf("    ⚠️  保存 %s 失败: %v\n", filename, err)
-			continue
-		}
-
-		fmt.Printf("    ✅ %s\n", filename)
-	}
-
-	return nil
 }

@@ -210,6 +210,12 @@ main() {
     chmod +x "${BINARY_PATH}"
     print_success "预编译版本下载成功"
     
+    # 写入版本状态（触发首次运行时自动同步文档）
+    STATE_DIR="${INSTALL_DIR}/.state"
+    mkdir -p "${STATE_DIR}"
+    echo "${LATEST_VERSION}" > "${STATE_DIR}/version"
+    print_success "版本状态已记录"
+    
     # 下载系统配置文件
     print_info "下载系统配置..."
     SYSTEM_CONFIG_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/config/system.json"
@@ -221,28 +227,8 @@ main() {
         print_warning "系统配置下载失败，将使用内置默认值"
     fi
     
-    # 下载包开发指南
-    print_info "下载包开发指南..."
-    DOCS_DIR="${INSTALL_DIR}/docs"
-    mkdir -p "${DOCS_DIR}"
-    PACKAGE_GUIDE_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/docs/public/package-dev-guide.md"
-    PACKAGE_GUIDE_PATH="${DOCS_DIR}/package-dev-guide.md"
-    
-    if curl -fsSL -o "${PACKAGE_GUIDE_PATH}" "${PACKAGE_GUIDE_URL}"; then
-        print_success "包开发指南下载成功"
-    else
-        print_warning "包开发指南下载失败"
-    fi
-    
-    # 下载 release workflow 模板
-    WORKFLOW_TEMPLATE_URL="https://raw.githubusercontent.com/shichao402/CursorToolset/${UPDATE_BRANCH}/docs/public/release-workflow-template.yml"
-    WORKFLOW_TEMPLATE_PATH="${DOCS_DIR}/release-workflow-template.yml"
-    
-    if curl -fsSL -o "${WORKFLOW_TEMPLATE_PATH}" "${WORKFLOW_TEMPLATE_URL}"; then
-        print_success "Release workflow 模板下载成功"
-    else
-        print_warning "Release workflow 模板下载失败"
-    fi
+    # 文档文件将在首次运行命令时自动同步（由 setup 包处理）
+    # 这样保证 install.sh 和 update --self 的文档更新逻辑一致
     
     # 添加到 PATH
     print_info "配置环境变量..."
