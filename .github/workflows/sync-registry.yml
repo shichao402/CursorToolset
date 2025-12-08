@@ -17,6 +17,10 @@ on:
   issues:
     types: [opened]
 
+  # Repository dispatch 触发（包发布后自动同步）
+  repository_dispatch:
+    types: [package-released]
+
 jobs:
   # 单包同步（通过 issue 触发）
   sync-single:
@@ -144,9 +148,9 @@ jobs:
           
           gh issue close ${{ github.event.issue.number }}
 
-  # 全量同步（定时或手动触发）
+  # 全量同步（定时或手动触发）或单包同步（repository_dispatch）
   sync-all:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -159,8 +163,15 @@ jobs:
         run: |
           echo "🔄 开始同步所有包..."
           
-          # 如果指定了单个仓库
+          # 如果指定了单个仓库（来自 workflow_dispatch 或 repository_dispatch）
           SINGLE_REPO="${{ github.event.inputs.repository }}"
+          
+          # repository_dispatch 触发时从 client_payload 获取仓库
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            SINGLE_REPO="${{ github.event.client_payload.repository }}"
+            echo "📦 触发来源: repository_dispatch"
+            echo "📦 同步仓库: $SINGLE_REPO"
+          fi
           
           # 获取所有仓库
           REPOS=$(jq -r '.packages[].repository' config/registry.json)

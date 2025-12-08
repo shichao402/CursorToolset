@@ -115,7 +115,15 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	if err := updateVersionInManifest(manifest, manifestPath, currentVersion, newVersion); err != nil {
 		return fmt.Errorf("更新版本号失败: %w", err)
 	}
-	fmt.Printf("   ✅ package.json 版本已更新为 %s\n\n", newVersion)
+	fmt.Printf("   ✅ package.json 版本已更新为 %s\n", newVersion)
+
+	// 同时更新 version.json（如果存在）
+	if err := updateVersionJSON(newVersion); err != nil {
+		fmt.Printf("   ⚠️  version.json 更新失败: %v\n", err)
+	} else {
+		fmt.Printf("   ✅ version.json 版本已更新为 %s\n", newVersion)
+	}
+	fmt.Println()
 
 	// Step 2: 打包
 	fmt.Println("📦 Step 2: 打包")
@@ -132,6 +140,12 @@ func runRelease(cmd *cobra.Command, args []string) error {
 	commitMsg := fmt.Sprintf("chore: release v%s", newVersion)
 	if err := gitAdd("package.json"); err != nil {
 		return fmt.Errorf("git add 失败: %w", err)
+	}
+	// 如果 version.json 存在，也添加到 commit
+	if _, err := os.Stat("version.json"); err == nil {
+		if err := gitAdd("version.json"); err != nil {
+			fmt.Printf("   ⚠️  git add version.json 失败: %v\n", err)
+		}
 	}
 	if err := gitCommit(commitMsg); err != nil {
 		return fmt.Errorf("git commit 失败: %w", err)
@@ -366,6 +380,54 @@ func saveManifest(manifest map[string]interface{}, path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+// updateVersionJSON 更新 version.json 文件
+func updateVersionJSON(newVersion string) error {
+	versionFile := "version.json"
+
+	// 检查文件是否存在
+	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
+		return nil // 文件不存在，跳过
+	}
+
+	// 读取现有内容
+	data, err := os.ReadFile(versionFile)
+	if err != nil {
+		return fmt.Errorf("读取 version.json 失败: %w", err)
+	}
+
+	// 解析 JSON
+	var versionData map[string]interface{}
+	if err := json.Unmarshal(data, &versionData); err != nil {
+		return fmt.Errorf("解析 version.json 失败: %w", err)
+	}
+
+	// 更新版本号（保持 v 前缀如果原来有的话）
+	if currentVersion, ok := versionData["version"].(string); ok {
+		if strings.HasPrefix(currentVersion, "v") {
+			versionData["version"] = "v" + newVersion
+		} else {
+			versionData["version"] = newVersion
+		}
+	} else {
+		versionData["version"] = newVersion
+	}
+
+	// 保存文件
+	newData, err := json.MarshalIndent(versionData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化 version.json 失败: %w", err)
+	}
+
+	// 添加换行符
+	newData = append(newData, '\n')
+
+	if err := os.WriteFile(versionFile, newData, 0644); err != nil {
+		return fmt.Errorf("写入 version.json 失败: %w", err)
+	}
+
+	return nil
 }
 
 // Git 操作函数

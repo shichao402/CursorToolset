@@ -424,6 +424,26 @@ jobs:
             /tmp/release/package.json
             /tmp/release/*.tar.gz
           generate_release_notes: true
+
+      # 触发 CursorToolset Registry 同步
+      - name: Trigger Registry Sync
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 触发 Registry 同步..."
+          REPO_URL="https://github.com/${{ github.repository }}"
+          
+          # 使用 repository_dispatch 触发 CursorToolset 的 sync workflow
+          # 注意：需要有 public_repo 权限的 token，或者仓库是 public 的
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.CURSORTOOLSET_SYNC_TOKEN }}" \
+            https://api.github.com/repos/shichao402/CursorToolset/dispatches \
+            -d "{\"event_type\":\"package-released\",\"client_payload\":{\"repository\":\"$REPO_URL\"}}" \
+            && echo "✅ Registry 同步已触发" \
+            || echo "⚠️ Registry 同步触发失败（可能需要配置 CURSORTOOLSET_SYNC_TOKEN）"
 `
 	return os.WriteFile(filepath.Join(workflowDir, "release.yml"), []byte(content), 0644)
 }
