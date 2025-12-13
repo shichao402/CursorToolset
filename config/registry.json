@@ -28,13 +28,13 @@
     {
       "repository": "https://github.com/shichao402/CursorColdStart",
       "name": "cursor-cold-start",
-      "version": "2.4.1",
+      "version": "2.4.2",
       "description": "项目AI冷启动初始化系统 - 使用 Go 实现的跨平台脚手架工具，帮助新项目快速启动并配置 Cursor AI 规则",
       "author": "CursorColdStart Team",
       "dist": {
-        "sha256": "2cac25af559791d387596de7da3ad54f3c1e50c646769a2bf3044f1c529e341c",
-        "tarball": "cursor-cold-start-2.4.1.tar.gz",
-        "size": 8391174
+        "sha256": "fdef0c8f1ca9cc07f4b7b0a06e2a5d05cbbdf6c3392262568a6fc569666d1eb9",
+        "tarball": "cursor-cold-start-2.4.2.tar.gz",
+        "size": 8391519
       }
     },
     {
@@ -50,5 +50,5 @@
       }
     }
   ],
-  "updated_at": "2025-12-13T07:08:59Z"
+  "updated_at": "2025-12-13T08:12:17Z"
 }
