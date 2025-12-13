@@ -72,12 +72,35 @@ func (m *MultiRegistryManager) loadRegistry(regType types.RegistryType) error {
 		return err
 	}
 
-	var registry types.PackRegistry
-	if err := json.Unmarshal(data, &registry); err != nil {
+	// 尝试解析为新格式（packages 数组）
+	var rawRegistry struct {
+		Version   string                `json:"version"`
+		UpdatedAt string                `json:"updated_at,omitempty"`
+		Packages  []types.PackMetadata  `json:"packages,omitempty"`
+		Packs     map[string]types.PackMetadata `json:"packs,omitempty"`
+	}
+	if err := json.Unmarshal(data, &rawRegistry); err != nil {
 		return fmt.Errorf("解析注册表失败: %w", err)
 	}
 
-	m.registries[regType] = &registry
+	// 转换为内部格式
+	registry := &types.PackRegistry{
+		Version:   rawRegistry.Version,
+		UpdatedAt: rawRegistry.UpdatedAt,
+		Packs:     make(map[string]types.PackMetadata),
+	}
+
+	// 如果有 packages 数组，转换为 map
+	if len(rawRegistry.Packages) > 0 {
+		for _, pkg := range rawRegistry.Packages {
+			registry.Packs[pkg.Name] = pkg
+		}
+	} else if rawRegistry.Packs != nil {
+		// 使用旧格式的 packs map
+		registry.Packs = rawRegistry.Packs
+	}
+
+	m.registries[regType] = registry
 	return nil
 }
 
