@@ -38,7 +38,7 @@ func GetSystemConfigPath() (string, error) {
 		return filepath.Join(rootDir, "config", "system.json"), nil
 	}
 
-	return filepath.Join(homeDir, ".decs", "config", "system.json"), nil
+	return filepath.Join(homeDir, ".dec", "config", "system.json"), nil
 }
 
 // LoadSystemConfig 加载系统配置

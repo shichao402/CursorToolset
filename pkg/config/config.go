@@ -30,7 +30,7 @@ func GetConfigPath() (string, error) {
 		return filepath.Join(rootDir, "config", "settings.json"), nil
 	}
 
-	return filepath.Join(homeDir, ".decs", "config", "settings.json"), nil
+	return filepath.Join(homeDir, ".dec", "config", "settings.json"), nil
 }
 
 // Load 加载用户配置文件

@@ -1,6 +1,6 @@
 // Package state 管理 Dec 的运行时状态
 //
-// 状态文件存储在 ~/.decs/.state/ 目录下：
+// 状态文件存储在 ~/.dec/.state/ 目录下：
 //   - version: 当前安装的二进制版本（由 install.sh 或 update --self 写入）
 //   - docs_version: 文档的版本（由 setup 逻辑写入）
 //
