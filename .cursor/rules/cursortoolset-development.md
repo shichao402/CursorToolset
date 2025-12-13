@@ -1,0 +1,499 @@
+# Dec 项目开发规则
+
+## 项目概述
+
+Dec 是一个 Cursor 工具集管理器，采用 Go 语言开发，类似 pip/brew 的包管理工具。
+
+**核心设计理念**：
+- **简单** - 像 pip/brew 一样简单：下载、解压、完成
+- **安全** - 不执行任何脚本，只做文件分发
+- **透明** - 所有包信息公开可查，SHA256 校验
+
+## 架构设计原则
+
+### 单一职责原则
+
+每个组件只负责自己的事情，通过状态文件解耦通信：
+
+```
+~/.decs/
+├── .state/
+│   ├── version          # 二进制版本（install.sh / update --self 写入）
+│   └── docs_version     # 文档版本（setup 包写入）
+```
+
+**职责划分**：
+- `scripts/install.sh` - 只下载二进制 + 写入 `.state/version`
+- `cmd/update.go` - 只更新二进制 + 写入 `.state/version`
+- `pkg/setup/` - 只检测版本差异 + 同步文档 + 写入 `.state/docs_version`
+
+### 事件驱动模式
+
+状态变化后，由独立的响应者检测并处理：
+
+```go
+// root.go - 每次执行命令前自动检查
+PersistentPreRun: func(cmd *cobra.Command, args []string) {
+    _ = setup.EnsureDocs()  // 检测 version != docs_version 则同步
+}
+```
+
+**好处**：
+- 单点维护：文档同步逻辑只在 `pkg/setup/` 中
+- 解耦：install.sh 和 update 命令不需要知道文档如何同步
+- 幂等：多次调用结果一致
+
+### 状态管理规范
+
+```go
+// pkg/state/state.go - 状态读写的唯一入口
+state.GetVersion()      // 读取二进制版本
+state.SetVersion(v)     // 写入二进制版本
+state.GetDocsVersion()  // 读取文档版本
+state.SetDocsVersion(v) // 写入文档版本
+state.NeedDocsUpdate()  // 检查是否需要更新文档
+```
+
+**规则**：
+- 只有负责该状态的组件才能写入
+- 其他组件只能读取
+- 通过状态文件而非直接调用来触发行为
+
+## 技术栈
+
+- **语言**: Go 1.21+
+- **CLI 框架**: cobra (github.com/spf13/cobra v1.8.0)
+- **包管理**: 基于 registry.json + manifest (package.json)
+- **分发**: GitHub Release + tarball
+
+## 项目结构
+
+```
+Dec/
+├── cmd/                    # 命令行子命令实现
+│   ├── root.go            # 根命令和版本管理
+│   ├── install.go         # 安装命令
+│   ├── uninstall.go       # 卸载命令
+│   ├── list.go            # 列表命令
+│   ├── search.go          # 搜索命令
+│   ├── info.go            # 信息查看命令
+│   ├── clean.go           # 清理命令
+│   ├── update.go          # 更新命令
+│   ├── registry.go        # Registry 管理命令
+│   └── init.go            # 包初始化命令
+├── pkg/                    # 核心包
+│   ├── config/            # 配置管理
+│   ├── types/             # 类型定义
+│   ├── paths/             # 路径管理
+│   ├── state/             # 状态管理（版本状态文件读写）
+│   ├── setup/             # 初始化和文档同步
+│   ├── registry/          # Registry 管理
+│   ├── installer/         # 安装器
+│   ├── downloader/        # 下载器
+│   ├── loader/            # 包加载器
+│   └── version/           # 版本管理
+├── scripts/               # 脚本文件
+│   ├── install.sh         # Linux/macOS 安装脚本
+│   ├── install.ps1        # Windows 安装脚本
+│   ├── uninstall.sh       # 卸载脚本
+│   └── build.sh           # 构建脚本
+├── docs/                  # 文档目录
+├── main.go               # 入口文件
+├── Makefile              # 构建配置
+├── go.mod                # Go 模块定义
+├── registry.json         # 包注册表
+└── version.json          # 版本信息
+
+运行时目录结构 (~/.decs/):
+├── .state/                # 状态文件（版本同步用）
+│   ├── version            # 当前安装的二进制版本
+│   └── docs_version       # 文档版本
+├── repos/                 # 已安装的包
+├── cache/
+│   ├── packages/          # 下载缓存
+│   └── manifests/         # manifest 缓存
+├── config/
+│   ├── registry.json      # 本地 registry 缓存
+│   └── settings.json      # 用户配置
+├── docs/                  # 文档文件（自动同步）
+│   ├── package-dev-guide.md
+│   └── release-workflow-template.yml
+└── bin/                   # 二进制文件
+```
+
+## 代码风格规范
+
+### 1. Go 代码规范
+
+#### 包组织
+- 按功能模块划分包，保持单一职责原则
+- 包名使用小写单数形式（如 `installer`，不是 `installers`）
+- 避免循环依赖
+
+#### 命名规范
+- **变量/函数**: 驼峰命名法 (camelCase / PascalCase)
+- **常量**: PascalCase 或 UPPER_SNAKE_CASE
+- **接口**: 单方法接口使用 `-er` 后缀（如 `Installer`）
+- **私有/公开**: 小写开头为私有，大写开头为公开
+
+#### 注释规范
+```go
+// Manager 管理包注册表
+type Manager struct {
+    // ...
+}
+
+// Update 更新本地 registry 缓存
+func (m *Manager) Update() error {
+    // ...
+}
+```
+
+#### 错误处理
+```go
+// ✅ 推荐：使用 fmt.Errorf 包装错误
+if err != nil {
+    return fmt.Errorf("下载 registry 失败: %w", err)
+}
+
+// ✅ 推荐：友好的错误提示
+return fmt.Errorf("未找到包: %s\n\n提示: 运行 'dec registry update' 更新包索引", packageName)
+```
+
+#### 用户交互输出
+使用 emoji 和中文提供友好的用户体验：
+```go
+fmt.Println("📦 开始安装...")
+fmt.Printf("✅ %s 安装完成\n", name)
+fmt.Printf("⚠️  警告: %s\n", warning)
+fmt.Printf("❌ 错误: %v\n", err)
+fmt.Println("ℹ️  提示信息")
+```
+
+### 2. 结构体定义规范
+
+#### 类型定义要有清晰的注释分组
+```go
+// ========================================
+// Registry 相关类型（包索引）
+// ========================================
+
+// Registry 表示包注册表
+type Registry struct {
+    Version  string         `json:"version"`
+    Packages []RegistryItem `json:"packages"`
+}
+```
+
+#### JSON 标签规范
+- 使用 `json:"fieldName"` 标签
+- 可选字段添加 `omitempty`：`json:"description,omitempty"`
+- 保持字段顺序：必需字段在前，可选字段在后
+
+### 3. 开发环境规范
+
+#### Makefile 使用
+- **开发时必须设置环境变量**: `DEC_ROOT=$(pwd)/.root`
+- 所有命令都应通过 `.root` 目标确保开发根目录存在
+- 使用 emoji 增强输出可读性
+
+```makefile
+.PHONY: build
+build: .root
+	@echo "🔨 构建 $(BINARY_NAME)..."
+	@echo "📌 版本: $(VERSION)"
+	go build $(LDFLAGS) -o $(BINARY_NAME) .
+	@echo "✅ 构建完成"
+```
+
+#### 版本管理
+- 版本信息存储在 `version.json`
+- 编译时通过 `-ldflags` 注入版本和构建时间
+- 支持从 `version.json` 动态读取版本（开发模式）
+
+### 4. 包管理架构
+
+#### 可执行程序链接机制
+包可以通过 `bin` 字段配置需要暴露的可执行程序：
+```json
+{
+  "bin": {
+    "mycmd": "bin/mycmd.sh",
+    "mytool": "scripts/tool.py"
+  }
+}
+```
+
+**安装流程：**
+1. 解压包到 `~/.decs/repos/<package-name>/`
+2. 读取 `bin` 配置
+3. 为每个命令创建符号链接：`~/.decs/bin/<command>` -> `repos/<package>/bin/xxx`
+4. 设置可执行权限（Unix 系统）
+5. 提示用户将 bin 目录添加到 PATH
+
+**卸载流程：**
+1. 读取包的 manifest 获取 `bin` 配置
+2. 删除所有对应的符号链接
+3. 删除包目录
+
+#### Registry 机制
+```
+1. 下载 registry.json（从 GitHub Release）
+   ↓
+2. 获取包的 manifestUrl
+   ↓
+3. 下载 package.json（manifest）
+   ↓
+4. 从 manifest.dist.tarball 下载包
+   ↓
+5. 验证 SHA256
+   ↓
+6. 解压到本地 repos 目录
+```
+
+#### 关键类型
+- **Registry**: 包索引（轻量级，只包含名称和 manifest URL）
+- **Manifest**: 包自描述文件（完整元信息）
+- **Distribution**: 分发信息（tarball URL + SHA256）
+
+### 5. 兼容性处理
+
+#### 标记废弃代码
+```go
+// ========================================
+// 兼容旧版本的方法（逐步废弃）
+// ========================================
+
+// NewInstallerCompat 创建兼容旧版本的安装器
+// Deprecated: 使用 NewInstaller 替代
+func NewInstallerCompat(toolsetsDir, workDir string) *InstallerCompat {
+    // ...
+}
+```
+
+### 6. 测试规范
+
+- 测试文件命名：`*_test.go`
+- 使用 Go 标准库 `testing` 包
+- 测试函数命名：`TestXxx`
+- 使用表驱动测试（table-driven tests）
+
+## 命令实现规范
+
+### 命令结构
+```go
+var cmdName = &cobra.Command{
+    Use:   "command [args]",
+    Short: "简短描述",
+    Long: `详细描述，包括：
+- 功能说明
+- 使用场景
+- 示例`,
+    Args: cobra.MaximumNArgs(1),
+    RunE: func(cmd *cobra.Command, args []string) error {
+        // 1. 参数验证
+        // 2. 初始化依赖
+        // 3. 执行业务逻辑
+        // 4. 友好的输出
+        return nil
+    },
+}
+
+func init() {
+    // 注册标志
+    cmdName.Flags().BoolVar(&flag, "flag", false, "描述")
+}
+```
+
+### 输出格式
+```go
+// 操作开始
+fmt.Println("📦 开始操作...")
+
+// 进度提示
+fmt.Printf("  ✅ %s\n", item)
+fmt.Printf("  ⚠️  跳过 %s: 原因\n", item)
+
+// 统计信息
+fmt.Printf("📊 统计: 成功 %d, 跳过 %d, 失败 %d\n", success, skip, fail)
+
+// 友好提示
+fmt.Printf("\n💡 使用提示:\n")
+fmt.Printf("   详细文档: %s\n", url)
+```
+
+## 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `DEC_ROOT` | 运行时根目录 | `~/.decs` |
+| `DEC_REGISTRY` | Registry URL | GitHub Release URL |
+
+## 开发流程
+
+### 1. 添加新命令
+```bash
+# 1. 在 cmd/ 目录创建新文件
+# 2. 定义 cobra.Command
+# 3. 在 init() 中注册到 RootCmd
+# 4. 实现命令逻辑
+# 5. 添加文档和测试
+```
+
+示例：`cmd/pack.go` - 标准化打包命令
+- 验证 package.json 配置
+- 智能排除不需要的文件
+- 创建标准 tar.gz 包
+- 计算 SHA256 校验和
+- 可选自动更新配置文件
+# 3. 在 root.go 的 init() 中注册
+# 4. 实现业务逻辑（调用 pkg/ 中的包）
+```
+
+### 2. 添加新功能包
+```bash
+# 1. 在 pkg/ 目录创建新包
+# 2. 定义公开接口（大写开头）
+# 3. 实现私有逻辑（小写开头）
+# 4. 添加单元测试
+```
+
+### 3. 构建和测试
+```bash
+# 开发构建（使用 .root 目录）
+make build
+
+# 运行测试
+make test
+
+# 跨平台构建
+make build-all
+
+# 清理
+make clean
+make clean-root
+```
+
+### 4. 发布新版本（三阶段流程）
+
+遵循 GitHub Actions CI/CD 规则，使用三阶段自动化发布：
+
+```bash
+# 阶段1：构建
+# 1. 更新 version.json
+# 2. 提交并推送
+git add version.json
+git commit -m "Bump version to X.Y.Z"
+git push
+
+# 3. 创建构建标签，触发 CI 构建
+git tag buildX.Y.Z
+git push --tags
+# 等待 GitHub Actions 构建完成
+
+# 阶段2：测试
+# 4. 创建测试标签，触发预发布
+git tag testX.Y.Z
+git push --tags
+# 等待预发布创建，验证功能正常
+
+# 阶段3：正式发布
+# 5. 创建发布标签，触发正式发布
+git tag vX.Y.Z
+git push --tags
+# GitHub Actions 自动创建正式 Release 并上传产物
+```
+
+**注意**：
+- ❌ 禁止手动创建 GitHub Release
+- ❌ 禁止手动上传构建产物
+- ✅ 必须通过标签触发自动化流程
+
+## 包开发规范
+
+### package.json 结构
+```json
+{
+  "name": "package-name",
+  "displayName": "显示名称",
+  "version": "1.0.0",
+  "description": "描述",
+  "author": "作者",
+  "license": "MIT",
+  "keywords": ["keyword1", "keyword2"],
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/repo.git"
+  },
+  
+  "dist": {
+    "tarball": "https://github.com/user/repo/releases/download/v1.0.0/package-1.0.0.tar.gz",
+    "sha256": "abc123..."
+  },
+  
+  "bin": {
+    "command-name": "bin/command",
+    "another-cmd": "scripts/another.sh"
+  },
+  
+  "dec": {
+    "minVersion": "1.0.0"
+  },
+  
+  "dependencies": ["dep1", "dep2"]
+}
+```
+
+#### bin 字段说明（可选）
+- 配置需要暴露的可执行程序
+- 键：命令名称（用户在终端中输入的命令）
+- 值：包内可执行文件的相对路径
+- 安装时会自动创建符号链接到 `~/.decs/bin/`
+- 卸载时会自动清理符号链接
+
+## 文档规范
+
+- 所有 Markdown 文档使用中文
+- 代码示例使用 bash 语法高亮
+- 使用表格整理命令和选项
+- 提供清晰的使用示例
+
+## 常见问题
+
+### Q: 如何调试开发版本？
+A: 使用 `make build` 构建，会自动设置 `DEC_ROOT=.root`
+
+### Q: 如何添加新的包到 registry？
+A: 
+1. Fork 项目仓库
+2. 编辑 `registry.json` 添加包信息
+3. 提交 PR
+
+### Q: 如何处理向后兼容性？
+A: 保留旧的类型定义，标记为 `Deprecated`，提供新的实现
+
+## 禁止事项
+
+❌ **不要执行任何安装脚本** - 只做文件分发，保证安全性
+❌ **不要在包中包含二进制文件** - 只分发源代码和配置文件
+❌ **不要跳过 SHA256 校验** - 安全第一
+❌ **不要修改用户的全局配置** - 所有内容安装在 `~/.decs/`
+❌ **不要在生产代码中使用 panic** - 使用 error 返回
+
+## 最佳实践
+
+✅ 保持代码简洁，一个函数只做一件事
+✅ 提供友好的错误信息和提示
+✅ 使用 emoji 增强用户体验
+✅ 充分的错误处理和边界检查
+✅ 优先使用缓存，减少网络请求
+✅ 支持离线使用（缓存机制）
+✅ 兼容多平台（Linux/macOS/Windows）
+
+## 相关资源
+
+- 项目仓库: https://github.com/shichao402/Dec
+- 文档目录: ./docs/
+- 示例: USAGE_EXAMPLE.md
+- 包开发指南: PACKAGE_DEV.md

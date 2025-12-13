@@ -1,0 +1,317 @@
+# Dec 测试指南
+
+本文档描述 Dec 的测试流程和规范。
+
+## 测试原则
+
+> **重要**: 命令执行成功 ≠ 测试通过
+
+每个测试必须有明确的验证条件：
+1. 命令必须成功执行（exit code = 0）
+2. 输出必须符合预期
+3. **关键文件必须存在且内容正确**
+
+例如，`install` 命令不仅要成功，还要验证：
+- 包目录存在
+- `package.json` 存在
+- 二进制文件存在（如果有）
+- `.dec/` 目录存在
+
+## 测试类型
+
+| 类型 | 命令/触发 | 说明 |
+|------|-----------|------|
+| 单元测试 | `make test` | Go 单元测试 |
+| 功能测试 | `./scripts/run-tests.sh` | 完整功能验证 |
+| 定时测试 | GitHub Actions (每天 8:00 北京时间) | 自动化回归测试 |
+| 手动测试 | 见下文 | 按步骤手动验证 |
+
+## CI 定时测试
+
+### 触发条件
+
+- **定时触发**: 北京时间每天早上 8:00 (UTC 0:00)
+- **变更检查**: 仅当 main 分支在过去 24 小时有新提交时运行
+- **手动触发**: 支持在 GitHub Actions 页面手动运行
+
+### 测试内容
+
+| 测试项 | 说明 |
+|--------|------|
+| 单元测试 | `go test ./... -v -cover` |
+| 代码检查 | golangci-lint |
+| 功能测试 | `./scripts/run-tests.sh` |
+| 跨平台构建 | linux/darwin/windows × amd64/arm64 |
+
+### 手动触发
+
+1. 访问 [GitHub Actions](https://github.com/shichao402/Dec/actions/workflows/scheduled-test.yml)
+2. 点击 "Run workflow"
+3. 可选择 "跳过变更检查" 强制运行
+
+## 测试环境
+
+### 测试包仓库
+
+- **地址**: https://github.com/shichao402/dec-test-package
+- **用途**: 专门用于验证包管理器功能
+- **特点**: 包含 Go 程序，输出编译时间，验证二进制编译
+
+### 前置条件
+
+```bash
+# 必需
+go version        # Go 1.21+
+jq --version      # JSON 处理
+curl --version    # HTTP 请求
+
+# 可选
+strings --help    # 二进制分析（验证编译时间）
+```
+
+## 快速测试
+
+### 运行自动化测试
+
+```bash
+cd /path/to/Dec
+./scripts/run-tests.sh
+```
+
+**预期输出**:
+```
+==========================================
+Dec 完整功能测试
+==========================================
+...
+测试结果统计
+==========================================
+通过: 16
+失败: 0
+
+🎉 所有测试通过！
+```
+
+## 测试覆盖的功能
+
+| # | 功能 | 命令 | 验证点 |
+|---|------|------|--------|
+| 1 | 清理所有 | `clean --all --force` | `cache/packages/` 和 `repos/` 被清理 |
+| 2 | 更新索引 | `registry update` | `config/registry.json` 存在且有效 |
+| 3 | 列出包 | `list` | 输出包含 test-package |
+| 4 | 搜索包 | `search <keyword>` | 找到匹配的包 |
+| 5 | 查看详情 | `info <package>` | 显示版本等完整信息 |
+| 6 | 安装包 | `install <package>` | 包目录完整 |
+| 7 | 已安装列表 | `list --installed` | 显示已安装的包 |
+| 8 | **编译时间验证** | `strings` | 二进制包含编译时间戳 |
+| 9 | 更新包 | `update --packages` | 检测并更新 |
+| 10 | 卸载包 | `uninstall <package>` | 包目录被删除 |
+| 11 | 确认卸载 | `list --installed` | 列表为空 |
+| 12 | 安装所有 | `install` | 批量安装成功 |
+| 13 | 清理缓存 | `clean --cache` | `cache/packages/` 被清理 |
+| 14 | 初始化项目 | `init <name>` | 生成完整文件结构 |
+| 15 | 强制初始化 | `init --force` | 补充缺失文件 |
+| 16 | 版本显示 | `version` | 显示当前版本 |
+
+### 关键验证点说明
+
+**测试 06 (install) 的验证项**:
+```
+✓ 包目录完整
+✓ package.json 存在
+✓ 二进制文件存在
+✓ .dec 目录存在
+```
+
+**测试 14 (init) 的验证项**:
+```
+✓ package.json 存在且有效
+✓ README.md 存在
+✓ .dec/ 目录存在
+✓ .github/workflows/release.yml 存在
+✓ .gitignore 存在
+```
+
+> 💡 **注意**：包开发文档现已通过 CursorColdStart 的 `dec` pack 提供
+
+## 手动测试步骤
+
+### 1. 构建管理器
+
+```bash
+cd /path/to/Dec
+go build -o dec .
+./dec --version
+```
+
+### 2. 清理环境
+
+```bash
+./dec clean --all --force
+```
+
+### 3. 更新包索引
+
+```bash
+./dec registry update
+```
+
+### 4. 安装测试包
+
+```bash
+./dec install test-package
+```
+
+### 5. 验证编译时间 ⭐
+
+这是最关键的验证，确保 GitHub Actions 正确编译了二进制：
+
+```bash
+# 提取编译时间
+strings ~/.decs/repos/test-package/test-package | grep -E '^20[0-9]{2}-[0-9]{2}-[0-9]{2}_[0-9]{2}:[0-9]{2}:[0-9]{2}$'
+```
+
+**预期**: 显示 UTC 时间格式的编译时间，如 `2025-12-06_13:40:57`
+
+### 6. 本地编译验证
+
+```bash
+cd ~/.decs/repos/test-package
+go build -ldflags "-X main.Version=local -X 'main.BuildTime=$(date '+%Y-%m-%d_%H:%M:%S')'" -o test-package-local .
+./test-package-local
+```
+
+**预期输出**:
+```
+╔════════════════════════════════════════════╗
+║    Dec Test Package              ║
+╚════════════════════════════════════════════╝
+
+  版本: local
+  编译时间: 2025-12-06_21:47:12
+  Go 版本: go1.x.x
+  系统: darwin/arm64
+
+✅ 如果你看到这条消息，说明二进制文件已成功编译并运行！
+```
+
+### 7. 测试 init 命令
+
+```bash
+cd /tmp
+rm -rf test-init-pkg
+dec init test-init-pkg
+ls -la test-init-pkg/
+```
+
+**预期文件结构**:
+```
+test-init-pkg/
+├── .dec/
+│   └── docs/
+├── .github/
+│   └── workflows/
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+## 测试检查清单
+
+每次修改后，确保以下测试通过：
+
+- [ ] `make lint` 无错误
+- [ ] `make test` 单元测试通过
+- [ ] `./scripts/run-tests.sh` 功能测试通过
+- [ ] 编译时间验证通过
+
+## 更新测试包
+
+当需要更新测试包时：
+
+```bash
+cd /path/to/dec-test-package
+
+# 修改代码
+# ...
+
+# 提交
+git add -A
+git commit -m "feat: 更新"
+
+# 发布
+git tag v0.x.x
+git push origin main
+git push origin v0.x.x
+```
+
+GitHub Actions 会自动构建并创建 Release。
+
+## 常见问题
+
+### Q: 二进制文件无法运行？
+
+GitHub Actions 默认编译 Linux x86-64 版本。在 macOS 上：
+- 使用 `strings` 命令验证编译时间
+- 或本地重新编译运行
+
+### Q: SHA256 校验失败？
+
+确保 Release 中的 `package.json` 是由 workflow 自动生成的。
+
+### Q: 测试脚本报错？
+
+1. 检查网络连接
+2. 运行 `dec registry update`
+3. 查看具体错误信息
+
+### Q: 测试通过但功能有问题？
+
+检查验证函数是否足够严格。例如：
+- `install` 后不仅要检查目录存在，还要检查关键文件
+- `clean` 后要检查正确的目录被清理
+
+## 维护测试脚本
+
+### 添加新验证
+
+当发现测试遗漏时，在 `scripts/run-tests.sh` 中添加验证函数：
+
+```bash
+# 验证函数模板
+verify_xxx() {
+    # 1. 检查文件/目录存在
+    if [ ! -f "$expected_file" ]; then
+        echo "  ⚠️  文件不存在: $expected_file"
+        return 1
+    fi
+    
+    # 2. 检查内容正确
+    if ! grep -q "expected_content" "$file"; then
+        echo "  ⚠️  内容不符合预期"
+        return 1
+    fi
+    
+    echo "  ✓ 验证通过"
+    return 0
+}
+```
+
+### 目录结构说明
+
+```
+~/.decs/
+├── repos/              # 已安装的包（clean --all 清理）
+├── cache/
+│   ├── packages/       # 下载的 tarball（clean --cache 清理）
+│   └── manifests/      # 包信息缓存（registry update 管理）
+├── config/
+│   └── registry.json   # 本地索引
+├── bin/                # 可执行文件链接
+└── docs/               # 公开文档
+```
+
+## 相关文档
+
+- [开发指南](DEVELOPMENT.md)
+- [构建安装指南](BUILD.md)
