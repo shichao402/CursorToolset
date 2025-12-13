@@ -271,23 +271,30 @@ Registry 采用自动化管理机制，包开发者无需手动编辑配置文�
 }
 ```
 
-### 同步更新（自动）
+### 同步更新（完全自动化）
 
-已注册的包发布新版本后，有三种方式同步：
+**重要：包发布后会自动同步，无需任何手动操作。**
 
-**方式一：Issue 触发（立即生效）**
+使用 `cursortoolset init` 生成的 release workflow 会在发布成功后**自动创建 sync issue**，触发注册表同步。
 
-创建 Issue：
-- **标题**：`[sync] owner/repo` 或 `[sync] https://github.com/owner/repo`
-- **内容**：可留空
+#### 自动同步流程
 
-**方式二：定时同步**
+1. **Release 创建成功后**，workflow 自动创建 sync issue：
+   - 使用 `gh` CLI 创建 issue（带 `pack-sync` label）
+   - Issue body 包含 `repository: https://github.com/owner/repo`
+   - 自动检测已存在的 sync issue，避免重复创建
 
-每小时自动同步所有包的最新信息，无需手动操作。
+2. **同步操作执行**（在 CursorToolset 仓库）：
+   - `sync-registry.yml` workflow 检测到 `pack-sync` label 的 issue
+   - 从 issue body 读取 `repository:` 字段
+   - 下载最新的 `package.json`，更新 `config/registry.json`
+   - 自动提交更改并更新 registry release
 
-**方式三：手动触发**
+#### 补充同步机制
 
-在 GitHub Actions 页面手动运行 `sync-registry.yml` workflow。
+- **定时同步**：每小时自动同步所有包的最新信息（作为补充，确保不遗漏）
+
+**开发者无需任何手动操作，发布后会自动同步到注册表。**
 
 ### 手动管理（仅维护者）
 

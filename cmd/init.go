@@ -425,25 +425,38 @@ jobs:
             /tmp/release/*.tar.gz
           generate_release_notes: true
 
-      # 触发 CursorToolset Registry 同步
-      - name: Trigger Registry Sync
+      # 自动创建 Sync Issue 触发注册表同步
+      - name: Create Sync Issue
         if: success()
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🔄 触发 Registry 同步..."
           REPO_URL="https://github.com/${{ github.repository }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
           
-          # 使用 repository_dispatch 触发 CursorToolset 的 sync workflow
-          # 注意：需要有 public_repo 权限的 token，或者仓库是 public 的
-          curl -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.CURSORTOOLSET_SYNC_TOKEN }}" \
-            https://api.github.com/repos/shichao402/CursorToolset/dispatches \
-            -d "{\"event_type\":\"package-released\",\"client_payload\":{\"repository\":\"$REPO_URL\"}}" \
-            && echo "✅ Registry 同步已触发" \
-            || echo "⚠️ Registry 同步触发失败（可能需要配置 CURSORTOOLSET_SYNC_TOKEN）"
+          # 检查是否已存在相同的 sync issue
+          EXISTING_ISSUE=$(gh issue list \
+            --repo shichao402/CursorToolset \
+            --label "pack-sync" \
+            --search "repo:$REPO_URL" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || echo "")
+          
+          if [ -n "$EXISTING_ISSUE" ]; then
+            echo "ℹ️ 已存在相同的 sync issue #$EXISTING_ISSUE，跳过创建"
+          else
+            # 创建标准化的 sync issue
+            gh issue create \
+              --repo shichao402/CursorToolset \
+              --title "Sync $REPO_URL" \
+              --body "自动创建的同步请求，由 ${{ github.repository }}@$VERSION 发布触发。
+
+repository: $REPO_URL" \
+              --label "pack-sync"
+            
+            echo "✅ Sync issue 已创建，注册表将自动同步"
+          fi
 `
 	return os.WriteFile(filepath.Join(workflowDir, "release.yml"), []byte(content), 0644)
 }

@@ -24,7 +24,8 @@ on:
 jobs:
   # 单包同步（通过 issue 触发）
   sync-single:
-    if: github.event_name == 'issues' && startsWith(github.event.issue.title, '[sync]')
+    # 使用 label 识别 sync issue（更可靠）
+    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'pack-sync')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -37,20 +38,63 @@ jobs:
       - name: Parse issue
         id: parse
         run: |
-          # 从 issue title 或 body 提取 repository
-          TITLE="${{ github.event.issue.title }}"
+          # 优先从 payload 文件读取（如果使用 github-issue 工具创建）
+          # 否则从 issue body 或 title 解析
           BODY="${{ github.event.issue.body }}"
+          TITLE="${{ github.event.issue.title }}"
           
-          # 尝试从 title 提取（格式：[sync] owner/repo 或 [sync] https://...）
-          REPO=$(echo "$TITLE" | sed 's/\[sync\]\s*//' | xargs)
+          # 尝试从 body 中提取 Gist URL（github-issue 工具会将 payload 存储在 Gist）
+          GIST_URL=$(echo "$BODY" | grep -oP 'https://gist\.github\.com/[^\s\)]+' | head -1 || echo "")
           
-          # 如果不是完整 URL，补全
-          if [[ ! "$REPO" =~ ^https:// ]]; then
-            REPO="https://github.com/$REPO"
+          if [ -n "$GIST_URL" ]; then
+            echo "📦 从 Gist 读取 payload..."
+            # 从 Gist URL 提取 Gist ID
+            GIST_ID=$(echo "$GIST_URL" | sed 's|https://gist.github.com/||' | awk '{print $1}')
+            # 下载 payload JSON
+            PAYLOAD_URL="https://gist.githubusercontent.com/$GIST_ID/raw"
+            if curl -sfL "$PAYLOAD_URL" -o /tmp/payload.json; then
+              REPO=$(jq -r '.repository // empty' /tmp/payload.json)
+              if [ -n "$REPO" ] && [ "$REPO" != "null" ]; then
+                echo "✅ 从 payload 读取到 repository: $REPO"
+                echo "repository=$REPO" >> $GITHUB_OUTPUT
+                echo "📦 Repository: $REPO"
+                exit 0
+              fi
+            fi
           fi
           
-          # 规范化
+          # 回退方案：从 body 或 title 解析
+          echo "📦 从 issue body/title 解析 repository..."
+          
+          # 尝试从 body 提取 repository（格式：repository: https://...）
+          REPO=$(echo "$BODY" | grep -oP 'repository:\s*\K(https://github.com/[^\s\)]+)' | head -1 || echo "")
+          
+          # 如果 body 中没有，尝试从 title 解析
+          if [ -z "$REPO" ]; then
+            # 移除 [sync] 前缀并清理空格
+            REPO=$(echo "$TITLE" | sed 's/^\[sync\]\s*//' | xargs)
+            
+            # 移除版本号（匹配 v1.2.3 或 1.2.3 格式，可能前面有空格）
+            # 使用 awk 提取第一个字段（在空格或版本号之前）
+            if [[ "$REPO" =~ ^https://github.com/ ]]; then
+              # 完整 URL：提取到版本号之前
+              REPO=$(echo "$REPO" | awk '{print $1}' | sed 's/\s*v[0-9].*$//' | sed 's/\s*[0-9]\+\.[0-9]\+\.[0-9].*$//')
+            else
+              # owner/repo 格式：提取第一个字段（在空格之前）
+              REPO=$(echo "$REPO" | awk '{print $1}')
+              # 补全为完整 URL
+              REPO="https://github.com/$REPO"
+            fi
+          fi
+          
+          # 规范化：移除 .git 后缀和尾部斜杠
           REPO=$(echo "$REPO" | sed 's/\.git$//' | sed 's/\/$//')
+          
+          if [ -z "$REPO" ]; then
+            echo "error=无法从 issue 中提取 repository URL" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
           echo "repository=$REPO" >> $GITHUB_OUTPUT
           echo "📦 Repository: $REPO"
 

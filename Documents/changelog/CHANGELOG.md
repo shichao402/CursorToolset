@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [1.7.3] - 2025-12-13
+
+### Fixed
+- 修复发布后未自动创建 sync issue 的问题（Issue #8）
+- 修复 sync issue 解析包含版本号时的问题
+- 改进 sync issue 识别方式：使用 `pack-sync` label 替代 title 解析
+
+### Improved
+- 简化 release workflow：移除所有可选机制，使用唯一、标准化的流程
+- 支持从 Gist payload 读取同步信息（如果使用 `github-issue` 工具创建）
+- 改进 repository 解析逻辑：优先从 payload 读取，回退到 body 解析，最后回退到 title 解析
+- 确保包发布后自动同步到注册表，无需手动操作
+
+### Changed
+- Release workflow 模板：自动创建 sync issue（带 `pack-sync` label）
+- Sync workflow：使用 label 识别 sync issue，更可靠
+- 文档更新：强调完全自动化，移除手动创建说明
+
+## [1.7.2] - 2024-12-13
+
 ### Added
 - 新增 `release --wait` 选项：发布后自动等待 GitHub Actions 完成并确认 Release 创建
   - 使用 `gh` CLI 查询状态，避免 API 限流

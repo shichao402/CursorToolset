@@ -247,6 +247,16 @@ github-issue close 123 --result success --comment "已完成"
 }
 ```
 
+#### 包同步 (pack-sync)
+
+```json
+{
+  "repository": "https://github.com/owner/repo",
+  "version": "1.0.0",
+  "triggered_by": "release-workflow"
+}
+```
+
 ## 禁止行为
 
 - ❌ 手动在 GitHub 网页创建 Issue（应使用工具保持格式一致）
