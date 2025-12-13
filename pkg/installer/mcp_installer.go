@@ -126,7 +126,7 @@ func (i *MCPInstaller) selectPlatformBinary(installPath string) error {
 			// 如果目标文件已存在且不同，先删除
 			if srcPath != dstPath {
 				if _, err := os.Stat(dstPath); err == nil {
-					os.Remove(dstPath)
+					_ = os.Remove(dstPath)
 				}
 				// 重命名（或创建符号链接）
 				if err := os.Rename(srcPath, dstPath); err != nil {
@@ -136,7 +136,7 @@ func (i *MCPInstaller) selectPlatformBinary(installPath string) error {
 
 			// 设置可执行权限
 			if runtime.GOOS != "windows" {
-				os.Chmod(dstPath, 0755)
+				_ = os.Chmod(dstPath, 0755)
 			}
 
 			fmt.Printf("  🔧 选择平台可执行文件: %s\n", baseName)

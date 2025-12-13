@@ -74,9 +74,7 @@ func runLink(cmd *cobra.Command, args []string) error {
 
 	// 链接包
 	mgr := registry.NewMultiRegistryManager()
-	if err := mgr.Load(); err != nil {
-		// 忽略加载错误，可能是首次使用
-	}
+	_ = mgr.Load() // 忽略加载错误，可能是首次使用
 
 	if err := mgr.LinkPack(pack.Name, absPath, pack.Version, pack.Type); err != nil {
 		return fmt.Errorf("链接失败: %w", err)
@@ -113,9 +111,7 @@ func loadPackageJSON(packPath string) (*types.Pack, error) {
 // listLinkedPacks 列出所有已链接的包
 func listLinkedPacks() error {
 	mgr := registry.NewMultiRegistryManager()
-	if err := mgr.Load(); err != nil {
-		// 忽略加载错误
-	}
+	_ = mgr.Load() // 忽略加载错误
 
 	packs := mgr.ListLinkedPacks()
 	if len(packs) == 0 {

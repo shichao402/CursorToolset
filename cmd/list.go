@@ -74,9 +74,10 @@ var listCmd = &cobra.Command{
 		ruleCount := 0
 		mcpCount := 0
 		for _, pack := range filtered {
-			if pack.Type == types.PackTypeRule {
+			switch pack.Type {
+			case types.PackTypeRule:
 				ruleCount++
-			} else if pack.Type == types.PackTypeMCP {
+			case types.PackTypeMCP:
 				mcpCount++
 			}
 		}

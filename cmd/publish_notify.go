@@ -134,12 +134,12 @@ func buildIssueBody(pack *types.Pack) string {
 
 	sb.WriteString("### 包信息\n\n")
 	sb.WriteString("```json\n")
-	sb.WriteString(fmt.Sprintf("{\n"))
+	sb.WriteString("{\n")
 	sb.WriteString(fmt.Sprintf("  \"name\": \"%s\",\n", pack.Name))
 	sb.WriteString(fmt.Sprintf("  \"version\": \"%s\",\n", pack.Version))
 	sb.WriteString(fmt.Sprintf("  \"type\": \"%s\",\n", pack.Type))
 	sb.WriteString(fmt.Sprintf("  \"repository\": \"%s\"\n", pack.Repository.URL))
-	sb.WriteString(fmt.Sprintf("}\n"))
+	sb.WriteString("}\n")
 	sb.WriteString("```\n\n")
 
 	if pack.Description != "" {

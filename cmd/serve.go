@@ -46,18 +46,6 @@ type rpcError struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// MCP 协议消息
-type initializeParams struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
-	ClientInfo      clientInfo             `json:"clientInfo"`
-}
-
-type clientInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
 type initializeResult struct {
 	ProtocolVersion string       `json:"protocolVersion"`
 	Capabilities    capabilities `json:"capabilities"`

@@ -74,10 +74,8 @@ func (s *SyncService) Sync() (*SyncResult, error) {
 
 	// 加载注册表
 	if err := s.registryMgr.Load(); err != nil {
-		// 尝试自动更新
-		if updateErr := s.registryMgr.UpdateOfficial(); updateErr != nil {
-			// 忽略错误，继续使用内置规则
-		}
+		// 尝试自动更新，忽略错误，继续使用内置规则
+		_ = s.registryMgr.UpdateOfficial()
 	}
 
 	// 解析包

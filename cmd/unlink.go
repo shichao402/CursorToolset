@@ -27,9 +27,7 @@ func init() {
 
 func runUnlink(cmd *cobra.Command, args []string) error {
 	mgr := registry.NewMultiRegistryManager()
-	if err := mgr.Load(); err != nil {
-		// 忽略加载错误
-	}
+	_ = mgr.Load() // 忽略加载错误
 
 	// 移除所有链接
 	if unlinkAll {
