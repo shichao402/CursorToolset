@@ -122,9 +122,9 @@ type TechnologyConfig struct {
 type PacksConfig map[string]PackEntry
 
 // PackEntry 表示单个包的配置
+// 注意：包类型由包自身的 package.json 定义，用户只需指定是否启用和配置
 type PackEntry struct {
 	Enabled bool                   `json:"enabled"`          // 是否启用
-	Type    string                 `json:"type,omitempty"`   // 类型: rule, mcp
 	Config  map[string]interface{} `json:"config,omitempty"` // 用户配置
 }
 

@@ -1,22 +1,14 @@
 {
   "documentation": {
-    "enabled": true,
-    "type": "rule"
+    "enabled": true
   },
   "version-management": {
-    "enabled": true,
-    "type": "rule"
+    "enabled": true
   },
-  "github-actions": {
-    "enabled": false,
-    "type": "rule"
-  },
-  "github-issue": {
-    "enabled": false,
-    "type": "rule"
+  "github": {
+    "enabled": true
   },
   "dec": {
-    "enabled": true,
-    "type": "mcp"
+    "enabled": true
   }
 }

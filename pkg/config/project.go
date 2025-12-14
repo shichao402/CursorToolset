@@ -183,29 +183,9 @@ func (m *ProjectConfigManager) GetEnabledPacks() ([]string, error) {
 	return enabled, nil
 }
 
-// GetEnabledPacksByType 获取指定类型的已启用包
-func (m *ProjectConfigManager) GetEnabledPacksByType(packType string) ([]string, error) {
-	config, err := m.LoadPacksConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	var enabled []string
-	for name, entry := range config {
-		// 跳过注释字段
-		if len(name) > 0 && name[0] == '_' {
-			continue
-		}
-		if entry.Enabled && entry.Type == packType {
-			enabled = append(enabled, name)
-		}
-	}
-
-	return enabled, nil
-}
-
 // EnablePack 启用包
-func (m *ProjectConfigManager) EnablePack(name string, packType string, config map[string]interface{}) error {
+// 注意：包类型由包自身的 package.json 定义，用户只需指定是否启用
+func (m *ProjectConfigManager) EnablePack(name string, config map[string]interface{}) error {
 	packs, err := m.LoadPacksConfig()
 	if err != nil {
 		return err
@@ -213,7 +193,6 @@ func (m *ProjectConfigManager) EnablePack(name string, packType string, config m
 
 	packs[name] = types.PackEntry{
 		Enabled: true,
-		Type:    packType,
 		Config:  config,
 	}
 
@@ -257,11 +236,10 @@ func (m *ProjectConfigManager) InitProject(name string, ides []string) error {
 		return err
 	}
 
-	// 创建默认的包配置
+	// 创建默认的包配置（dec 是 MCP 包，类型由其 package.json 定义）
 	packsConfig := types.PacksConfig{
 		"dec": {
 			Enabled: true,
-			Type:    types.PackTypeMCP,
 		},
 	}
 	if err := m.SavePacksConfig(packsConfig); err != nil {

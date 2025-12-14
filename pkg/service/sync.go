@@ -97,6 +97,16 @@ func (s *SyncService) Sync() (*SyncResult, error) {
 		return nil, fmt.Errorf("生成 MCP 配置失败: %w", err)
 	}
 
+	// 把所有启用的包名加入 managedNames，用于清理类型变更后的残留配置
+	for name, entry := range packsConfig {
+		if len(name) > 0 && name[0] == '_' {
+			continue
+		}
+		if entry.Enabled {
+			managedNames = append(managedNames, name)
+		}
+	}
+
 	// 构建结果
 	result := &SyncResult{
 		ProjectName: projectConfig.Name,
@@ -157,6 +167,7 @@ func (s *SyncService) Sync() (*SyncResult, error) {
 }
 
 // resolvePacks 解析包配置，分离规则包和 MCP 包
+// 包类型由包自身的 package.json 定义，而不是用户配置
 func (s *SyncService) resolvePacks(packsConfig map[string]types.PackEntry) (
 	[]generator.RulePackInfo,
 	[]generator.MCPPackInfo,
@@ -182,30 +193,30 @@ func (s *SyncService) resolvePacks(packsConfig map[string]types.PackEntry) (
 		// 解析包
 		resolved := s.registryMgr.ResolvePack(name)
 		if resolved == nil {
-			// 可能是内置包
-			if entry.Type == types.PackTypeRule {
-				enabledBuiltinPacks[name] = true
-			}
+			// 可能是内置包，内置包都是规则包
+			enabledBuiltinPacks[name] = true
 			continue
 		}
 
-		// 加载包的 package.json
+		// 加载包的 package.json 获取类型
 		pack, err := s.loadPackFromPath(resolved)
 		if err != nil {
 			continue
 		}
 
-		switch entry.Type {
-		case types.PackTypeRule:
-			rulePacks = append(rulePacks, generator.RulePackInfo{
+		// 根据包自身定义的类型分类
+		switch pack.Type {
+		case types.PackTypeMCP:
+			mcpPacks = append(mcpPacks, generator.MCPPackInfo{
 				Name:        name,
 				InstallPath: resolved.InstallPath,
 				LocalPath:   resolved.LocalPath,
 				Pack:        pack,
 				UserConfig:  entry.Config,
 			})
-		case types.PackTypeMCP:
-			mcpPacks = append(mcpPacks, generator.MCPPackInfo{
+		default:
+			// 默认为规则包（type 为空或 "rule"）
+			rulePacks = append(rulePacks, generator.RulePackInfo{
 				Name:        name,
 				InstallPath: resolved.InstallPath,
 				LocalPath:   resolved.LocalPath,
