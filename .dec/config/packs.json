@@ -8,11 +8,11 @@
     "type": "rule"
   },
   "github-actions": {
-    "enabled": true,
+    "enabled": false,
     "type": "rule"
   },
   "github-issue": {
-    "enabled": true,
+    "enabled": false,
     "type": "rule"
   },
   "dec": {
