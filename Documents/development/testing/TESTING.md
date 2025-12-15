@@ -101,9 +101,9 @@ ls -la .dec/config/
 **预期文件结构**:
 ```
 .dec/config/
-├── packs.json
-├── project.json
-└── technology.json
+├── packs.yaml
+├── project.yaml
+└── technology.yaml
 ```
 
 ### 3. 同步规则
@@ -148,11 +148,11 @@ cd /path/to/your-package
 
 ### Q: 规则文件没有生成？
 
-检查 `.dec/config/packs.json` 中是否启用了对应的包。
+检查 `.dec/config/packs.yaml` 中是否启用了对应的包。
 
 ### Q: MCP 配置为空？
 
-确保 `dec` 包在 `packs.json` 中启用。
+确保 `dec` 包在 `packs.yaml` 中启用。
 
 ### Q: 测试脚本报错？
 

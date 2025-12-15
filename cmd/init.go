@@ -22,9 +22,9 @@ var initNewCmd = &cobra.Command{
 
 生成的配置文件：
   .dec/config/
-  ├── project.json      项目信息
-  ├── technology.json   技术栈配置
-  └── packs.json        启用的包配置
+  ├── project.yaml      项目信息
+  ├── technology.yaml   技术栈配置（带注释说明）
+  └── packs.yaml        启用的包配置
 
 示例：
   dec init                        # 交互式初始化
@@ -69,14 +69,14 @@ func runInitProject(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("初始化失败: %w", err)
 	}
 
-	fmt.Println("  ✅ 创建 .dec/config/project.json")
-	fmt.Println("  ✅ 创建 .dec/config/technology.json")
-	fmt.Println("  ✅ 创建 .dec/config/packs.json")
+	fmt.Println("  ✅ 创建 .dec/config/project.yaml")
+	fmt.Println("  ✅ 创建 .dec/config/technology.yaml")
+	fmt.Println("  ✅ 创建 .dec/config/packs.yaml")
 
 	fmt.Println("\n✅ 初始化完成！")
 	fmt.Println("\n📝 下一步：")
-	fmt.Println("   1. 编辑 .dec/config/technology.json 配置技术栈")
-	fmt.Println("   2. 编辑 .dec/config/packs.json 启用需要的包")
+	fmt.Println("   1. 编辑 .dec/config/technology.yaml 配置技术栈")
+	fmt.Println("   2. 编辑 .dec/config/packs.yaml 启用需要的包")
 	fmt.Println("   3. 运行 dec sync 同步规则和 MCP 配置")
 
 	return nil

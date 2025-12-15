@@ -71,28 +71,26 @@ Dec 使用 `.dec/config/` 目录存储项目配置：
 
 ```
 .dec/config/
-├── project.json      # 项目信息 + 目标 IDE
-├── technology.json   # 技术栈（语言/框架/平台）
-└── packs.json        # 规则包 + MCP 工具启用/配置
+├── project.yaml      # 项目信息 + 目标 IDE
+├── technology.yaml   # 技术栈（语言/框架/平台/设计模式）
+└── packs.yaml        # 规则包 + MCP 工具启用/配置
 ```
 
-### packs.json 示例
+### packs.yaml 示例
 
-```json
-{
-  "documentation": {
-    "enabled": true
-  },
-  "version-management": {
-    "enabled": true
-  },
-  "github": {
-    "enabled": true
-  },
-  "dec": {
-    "enabled": true
-  }
-}
+```yaml
+# 规则包配置
+documentation:
+  enabled: true
+
+version-management:
+  enabled: true
+
+github:
+  enabled: true
+
+dec:
+  enabled: true
 ```
 
 ## 规则分层
@@ -100,8 +98,8 @@ Dec 使用 `.dec/config/` 目录存储项目配置：
 | 层级 | 类型 | 说明 |
 |------|------|------|
 | Layer 0 | 核心规则 | 始终启用（principles, security, git-config 等） |
-| Layer 1 | 技术栈规则 | 根据 technology.json 自动启用 |
-| Layer 2 | 功能规则 | 用户在 packs.json 中选择启用 |
+| Layer 1 | 技术栈规则 | 根据 technology.yaml 自动启用 |
+| Layer 2 | 功能规则 | 用户在 packs.yaml 中选择启用 |
 
 ## 目录结构
 

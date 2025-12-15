@@ -1,13 +1,13 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/shichao402/Dec/pkg/paths"
 	"github.com/shichao402/Dec/pkg/types"
+	"gopkg.in/yaml.v3"
 )
 
 // ========================================
@@ -37,7 +37,7 @@ func (m *ProjectConfigManager) Exists() bool {
 }
 
 // ========================================
-// 项目配置（project.json）
+// 项目配置（project.yaml）
 // ========================================
 
 // LoadProjectConfig 加载项目配置
@@ -52,7 +52,7 @@ func (m *ProjectConfigManager) LoadProjectConfig() (*types.ProjectConfig, error)
 	}
 
 	var config types.ProjectConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("解析项目配置失败: %w", err)
 	}
 
@@ -68,7 +68,7 @@ func (m *ProjectConfigManager) SaveProjectConfig(config *types.ProjectConfig) er
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
+	data, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("序列化项目配置失败: %w", err)
 	}
@@ -77,7 +77,7 @@ func (m *ProjectConfigManager) SaveProjectConfig(config *types.ProjectConfig) er
 }
 
 // ========================================
-// 技术栈配置（technology.json）
+// 技术栈配置（technology.yaml）
 // ========================================
 
 // LoadTechnologyConfig 加载技术栈配置
@@ -93,7 +93,7 @@ func (m *ProjectConfigManager) LoadTechnologyConfig() (*types.TechnologyConfig, 
 	}
 
 	var config types.TechnologyConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("解析技术栈配置失败: %w", err)
 	}
 
@@ -109,7 +109,7 @@ func (m *ProjectConfigManager) SaveTechnologyConfig(config *types.TechnologyConf
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
+	data, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("序列化技术栈配置失败: %w", err)
 	}
@@ -118,7 +118,7 @@ func (m *ProjectConfigManager) SaveTechnologyConfig(config *types.TechnologyConf
 }
 
 // ========================================
-// 包配置（packs.json）
+// 包配置（packs.yaml）
 // ========================================
 
 // LoadPacksConfig 加载包配置
@@ -134,7 +134,7 @@ func (m *ProjectConfigManager) LoadPacksConfig() (types.PacksConfig, error) {
 	}
 
 	var config types.PacksConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("解析包配置失败: %w", err)
 	}
 
@@ -150,7 +150,7 @@ func (m *ProjectConfigManager) SavePacksConfig(config types.PacksConfig) error {
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
+	data, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("序列化包配置失败: %w", err)
 	}
@@ -215,6 +215,50 @@ func (m *ProjectConfigManager) DisablePack(name string) error {
 	return nil
 }
 
+// createTechnologyTemplate 创建带注释的技术栈配置模板
+func (m *ProjectConfigManager) createTechnologyTemplate() error {
+	configPath := paths.GetTechnologyConfigPath(m.projectRoot)
+
+	// 确保目录存在
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+
+	// 带注释的 YAML 模板
+	template := `# 技术栈配置
+# 根据项目实际情况修改，注释/取消注释即可开关
+
+# 编程语言
+# 可选: go, dart, typescript, javascript, python, java, kotlin, swift, rust, c, cpp
+languages: []
+
+# 框架
+# 可选: flutter, react, vue, angular, django, fastapi, gin, echo, spring, nextjs
+frameworks: []
+
+# 目标平台
+# 可选: cli, web, android, ios, macos, windows, linux, embedded
+platforms: []
+
+# 设计模式（项目的主要设计模式）
+# 可选值及适用场景:
+#   command   - CLI 工具、命令分发、操作系统
+#   pipeline  - 数据处理流、编译器、ETL
+#   mvc       - Web 应用、传统后端
+#   mvvm      - 前端框架、数据绑定、GUI
+#   repository - 数据访问层、领域驱动设计
+#   factory   - 对象创建、依赖注入
+#   strategy  - 算法可切换、策略模式
+#   observer  - 事件驱动、发布订阅
+#   plugin    - 插件系统、可扩展架构
+#   decorator - 功能增强、中间件
+#   adapter   - 接口适配、兼容层
+patterns: []
+`
+
+	return os.WriteFile(configPath, []byte(template), 0644)
+}
+
 // ========================================
 // 初始化
 // ========================================
@@ -230,9 +274,8 @@ func (m *ProjectConfigManager) InitProject(name string, ides []string) error {
 		return err
 	}
 
-	// 创建空的技术栈配置
-	techConfig := &types.TechnologyConfig{}
-	if err := m.SaveTechnologyConfig(techConfig); err != nil {
+	// 创建带注释的技术栈配置模板
+	if err := m.createTechnologyTemplate(); err != nil {
 		return err
 	}
 
@@ -247,4 +290,48 @@ func (m *ProjectConfigManager) InitProject(name string, ides []string) error {
 	}
 
 	return nil
+}
+
+// createTechnologyTemplate 创建带注释的技术栈配置模板
+func (m *ProjectConfigManager) createTechnologyTemplate() error {
+	configPath := paths.GetTechnologyConfigPath(m.projectRoot)
+
+	// 确保目录存在
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+
+	// 带注释的 YAML 模板
+	template := `# 技术栈配置
+# 根据项目实际情况修改，注释/取消注释即可开关
+
+# 编程语言
+# 可选: go, dart, typescript, javascript, python, java, kotlin, swift, rust, c, cpp
+languages: []
+
+# 框架
+# 可选: flutter, react, vue, angular, django, fastapi, gin, echo, spring, nextjs
+frameworks: []
+
+# 目标平台
+# 可选: cli, web, android, ios, macos, windows, linux, embedded
+platforms: []
+
+# 设计模式（项目的主要设计模式）
+# 可选值及适用场景:
+#   command   - CLI 工具、命令分发、操作系统
+#   pipeline  - 数据处理流、编译器、ETL
+#   mvc       - Web 应用、传统后端
+#   mvvm      - 前端框架、数据绑定、GUI
+#   repository - 数据访问层、领域驱动设计
+#   factory   - 对象创建、依赖注入
+#   strategy  - 算法可切换、策略模式
+#   observer  - 事件驱动、发布订阅
+#   plugin    - 插件系统、可扩展架构
+#   decorator - 功能增强、中间件
+#   adapter   - 接口适配、兼容层
+patterns: []
+`
+
+	return os.WriteFile(configPath, []byte(template), 0644)
 }

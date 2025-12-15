@@ -99,7 +99,7 @@ var infoCmd = &cobra.Command{
 		} else {
 			fmt.Println("   ⏳ 未安装")
 			fmt.Println()
-			fmt.Println("💡 在 .dec/config/packs.json 中启用此包，然后运行 dec sync")
+			fmt.Println("💡 在 .dec/config/packs.yaml 中启用此包，然后运行 dec sync")
 		}
 
 		return nil

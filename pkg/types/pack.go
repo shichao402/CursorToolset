@@ -104,28 +104,29 @@ type Repository struct {
 // 项目配置类型（.dec/config/）
 // ========================================
 
-// ProjectConfig 表示项目配置（project.json）
+// ProjectConfig 表示项目配置（project.yaml）
 type ProjectConfig struct {
-	Name        string   `json:"name"`                  // 项目名称
-	Description string   `json:"description,omitempty"` // 项目描述
-	IDEs        []string `json:"ides,omitempty"`        // 目标 IDE: cursor, codebuddy, windsurf, trae
+	Name        string   `yaml:"name" json:"name"`                            // 项目名称
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"` // 项目描述
+	IDEs        []string `yaml:"ides,omitempty" json:"ides,omitempty"`        // 目标 IDE: cursor, codebuddy, windsurf, trae
 }
 
-// TechnologyConfig 表示技术栈配置（technology.json）
+// TechnologyConfig 表示技术栈配置（technology.yaml）
 type TechnologyConfig struct {
-	Languages  []string `json:"languages,omitempty"`  // 语言: go, dart, typescript, python 等
-	Frameworks []string `json:"frameworks,omitempty"` // 框架: flutter, react, vue, django 等
-	Platforms  []string `json:"platforms,omitempty"`  // 平台: web, android, ios, macos, windows, linux
+	Languages  []string `yaml:"languages,omitempty" json:"languages,omitempty"`   // 语言: go, dart, typescript, python 等
+	Frameworks []string `yaml:"frameworks,omitempty" json:"frameworks,omitempty"` // 框架: flutter, react, vue, django 等
+	Platforms  []string `yaml:"platforms,omitempty" json:"platforms,omitempty"`   // 平台: web, android, ios, macos, windows, linux
+	Patterns   []string `yaml:"patterns,omitempty" json:"patterns,omitempty"`     // 设计模式: command, pipeline, mvc, repository 等
 }
 
-// PacksConfig 表示包配置（packs.json）
+// PacksConfig 表示包配置（packs.yaml）
 type PacksConfig map[string]PackEntry
 
 // PackEntry 表示单个包的配置
 // 注意：包类型由包自身的 package.json 定义，用户只需指定是否启用和配置
 type PackEntry struct {
-	Enabled bool                   `json:"enabled"`          // 是否启用
-	Config  map[string]interface{} `json:"config,omitempty"` // 用户配置
+	Enabled bool                   `yaml:"enabled" json:"enabled"`                   // 是否启用
+	Config  map[string]interface{} `yaml:"config,omitempty" json:"config,omitempty"` // 用户配置
 }
 
 // ========================================

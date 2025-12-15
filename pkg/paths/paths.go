@@ -36,9 +36,9 @@ const (
 //
 // 项目配置目录：
 // <project>/.dec/config/
-// ├── project.json               <- 项目信息
-// ├── technology.json            <- 技术栈
-// └── packs.json                 <- 启用的包
+// ├── project.yaml              <- 项目信息
+// ├── technology.yaml           <- 技术栈
+// └── packs.yaml                <- 启用的包
 
 // GetRootDir 获取 Dec 根目录
 // 优先级：
@@ -197,17 +197,17 @@ func GetProjectConfigDir(projectRoot string) string {
 
 // GetProjectConfigPath 获取项目配置文件路径
 func GetProjectConfigPath(projectRoot string) string {
-	return filepath.Join(GetProjectConfigDir(projectRoot), "project.json")
+	return filepath.Join(GetProjectConfigDir(projectRoot), "project.yaml")
 }
 
 // GetTechnologyConfigPath 获取技术栈配置文件路径
 func GetTechnologyConfigPath(projectRoot string) string {
-	return filepath.Join(GetProjectConfigDir(projectRoot), "technology.json")
+	return filepath.Join(GetProjectConfigDir(projectRoot), "technology.yaml")
 }
 
 // GetPacksConfigPath 获取包配置文件路径
 func GetPacksConfigPath(projectRoot string) string {
-	return filepath.Join(GetProjectConfigDir(projectRoot), "packs.json")
+	return filepath.Join(GetProjectConfigDir(projectRoot), "packs.yaml")
 }
 
 // ========================================
